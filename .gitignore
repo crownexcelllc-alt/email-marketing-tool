@@ -1,0 +1,23 @@
+.codex/
+.client-git-backup/
+
+# Root
+.DS_Store
+*.log
+
+# Client
+Client/node_modules/
+Client/.next/
+Client/out/
+Client/build/
+Client/.env*
+Client/.vercel/
+Client/*.tsbuildinfo
+Client/next-env.d.ts
+
+# Server
+Server/node_modules/
+Server/dist/
+Server/coverage/
+Server/.env
+Server/.env.*

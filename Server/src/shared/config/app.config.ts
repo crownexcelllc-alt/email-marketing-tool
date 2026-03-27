@@ -1,0 +1,67 @@
+﻿import { registerAs } from '@nestjs/config';
+
+export const appConfig = registerAs('app', () => ({
+  nodeEnv: process.env.NODE_ENV ?? 'development',
+  port: Number(process.env.PORT ?? 5000),
+  apiPrefix: process.env.API_PREFIX ?? '',
+  corsOrigins: (process.env.CORS_ORIGINS ?? 'http://localhost:3000')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+}));
+
+export const mongoConfig = registerAs('mongo', () => ({
+  uri: process.env.MONGODB_URI,
+}));
+
+export const jwtConfig = registerAs('jwt', () => ({
+  secret: process.env.JWT_SECRET,
+  expiresIn: process.env.JWT_EXPIRES_IN ?? '1d',
+}));
+
+export const redisConfig = registerAs('redis', () => ({
+  host: process.env.REDIS_HOST,
+  port: Number(process.env.REDIS_PORT ?? 6379),
+  password: process.env.REDIS_PASSWORD || undefined,
+  db: Number(process.env.REDIS_DB ?? 0),
+  keyPrefix: process.env.BULLMQ_PREFIX ?? 'marketing-platform',
+  skipVersionCheck: (process.env.BULLMQ_SKIP_VERSION_CHECK ?? 'false') === 'true',
+}));
+
+export const queueConfig = registerAs('queues', () => ({
+  defaultAttempts: Number(process.env.QUEUE_DEFAULT_ATTEMPTS ?? 5),
+  defaultBackoffMs: Number(process.env.QUEUE_DEFAULT_BACKOFF_MS ?? 5000),
+  concurrency: {
+    contactImport: Number(process.env.CONTACT_IMPORT_CONCURRENCY ?? 2),
+    campaignScheduler: Number(process.env.CAMPAIGN_SCHEDULER_CONCURRENCY ?? 2),
+    emailSend: Number(process.env.EMAIL_SEND_CONCURRENCY ?? 5),
+    whatsappSend: Number(process.env.WHATSAPP_SEND_CONCURRENCY ?? 5),
+    webhookProcessing: Number(process.env.WEBHOOK_PROCESSING_CONCURRENCY ?? 5),
+    analyticsAggregation: Number(process.env.ANALYTICS_AGGREGATION_CONCURRENCY ?? 2),
+  },
+}));
+
+export const trackingConfig = registerAs('tracking', () => ({
+  baseUrl: process.env.TRACKING_BASE_URL ?? '',
+  tokenTtlSeconds: Number(process.env.TRACKING_TOKEN_TTL_SECONDS ?? 60 * 60 * 24 * 30),
+}));
+
+export const webhookConfig = registerAs('webhooks', () => ({
+  whatsappVerifyToken: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN ?? '',
+}));
+
+export const securityConfig = registerAs('security', () => ({
+  senderSecretsKey: process.env.SENDER_SECRETS_KEY,
+  trackingTokenSecret: process.env.TRACKING_TOKEN_SECRET,
+}));
+
+export const configuration = [
+  appConfig,
+  mongoConfig,
+  jwtConfig,
+  redisConfig,
+  queueConfig,
+  trackingConfig,
+  webhookConfig,
+  securityConfig,
+];
