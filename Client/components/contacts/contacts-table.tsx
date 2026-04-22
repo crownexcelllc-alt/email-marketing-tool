@@ -50,6 +50,9 @@ function LoadingRows() {
             <Skeleton className="h-4 w-20" />
           </TableCell>
           <TableCell>
+            <Skeleton className="h-4 w-24" />
+          </TableCell>
+          <TableCell>
             <Skeleton className="h-8 w-24" />
           </TableCell>
         </TableRow>
@@ -100,7 +103,8 @@ export function ContactsTable({
           <TableHead>Phone</TableHead>
           <TableHead>Company</TableHead>
           <TableHead>Status</TableHead>
-          <TableHead>Tags</TableHead>
+          <TableHead>Category</TableHead>
+          <TableHead>Labels</TableHead>
           <TableHead className="text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
@@ -109,7 +113,7 @@ export function ContactsTable({
           <LoadingRows />
         ) : contacts.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={8} className="py-14 text-center">
+            <TableCell colSpan={9} className="py-14 text-center">
               <div className="space-y-1">
                 <p className="text-sm font-medium text-zinc-200">No contacts found</p>
                 <p className="text-xs text-zinc-500">
@@ -139,16 +143,19 @@ export function ContactsTable({
                 <SubscriptionStatusBadge value={contact.subscriptionStatus} />
               </TableCell>
               <TableCell>
+                <span className="text-xs text-zinc-300">{contact.category ?? '-'}</span>
+              </TableCell>
+              <TableCell>
                 <div className="flex flex-wrap gap-1">
-                  {contact.tags.length === 0 ? (
-                    <span className="text-xs text-zinc-500">No tags</span>
+                  {contact.labels.length === 0 ? (
+                    <span className="text-xs text-zinc-500">No labels</span>
                   ) : (
-                    contact.tags.slice(0, 3).map((tag) => (
+                    contact.labels.slice(0, 3).map((label) => (
                       <span
-                        key={tag}
+                        key={label}
                         className="rounded border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-[11px] text-zinc-300"
                       >
-                        {tag}
+                        {label}
                       </span>
                     ))
                   )}

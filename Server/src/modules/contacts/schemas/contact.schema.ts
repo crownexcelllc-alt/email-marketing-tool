@@ -40,6 +40,13 @@ export class Contact {
   @Prop({ type: String, default: '' })
   company!: string;
 
+  @Prop({ type: String, default: '' })
+  category!: string;
+
+  @Prop({ type: [String], default: [] })
+  labels!: string[];
+
+  // Legacy compatibility field. Use `labels` in new code.
   @Prop({ type: [String], default: [] })
   tags!: string[];
 
@@ -101,5 +108,7 @@ ContactSchema.index(
 );
 
 ContactSchema.index({ workspaceId: 1, tags: 1 });
+ContactSchema.index({ workspaceId: 1, category: 1 });
+ContactSchema.index({ workspaceId: 1, labels: 1 });
 ContactSchema.index({ workspaceId: 1, fullName: 1 });
 ContactSchema.index({ workspaceId: 1, createdAt: -1 });

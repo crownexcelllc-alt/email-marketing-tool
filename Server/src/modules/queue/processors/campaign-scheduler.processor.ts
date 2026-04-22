@@ -25,7 +25,12 @@ import {
   SenderChannelType,
 } from '../../sender-accounts/constants/sender-account.enums';
 import { SenderAccount } from '../../sender-accounts/schemas/sender-account.schema';
-import { QUEUE_CONCURRENCY, QUEUE_NAMES } from '../queue.constants';
+import {
+  QUEUE_CONCURRENCY,
+  QUEUE_NAMES,
+  QUEUE_WORKER_SKIP_VERSION_CHECK,
+  QUEUE_WORKER_SKIP_WAITING_FOR_READY,
+} from '../queue.constants';
 import { QueueService } from '../queue.service';
 
 interface CampaignSchedulerPayload {
@@ -36,6 +41,8 @@ interface CampaignSchedulerPayload {
 @Injectable()
 @Processor(QUEUE_NAMES.CAMPAIGN_SCHEDULER, {
   concurrency: QUEUE_CONCURRENCY[QUEUE_NAMES.CAMPAIGN_SCHEDULER],
+  skipVersionCheck: QUEUE_WORKER_SKIP_VERSION_CHECK,
+  skipWaitingForReady: QUEUE_WORKER_SKIP_WAITING_FOR_READY,
 })
 export class CampaignSchedulerProcessor extends WorkerHost {
   private readonly logger = new Logger(CampaignSchedulerProcessor.name);

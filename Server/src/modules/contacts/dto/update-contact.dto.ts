@@ -57,6 +57,12 @@ export class UpdateContactDto {
   readonly company?: string;
 
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @MaxLength(80)
+  readonly category?: string;
+
+  @IsOptional()
   @Transform(({ value }) => {
     if (Array.isArray(value)) {
       return value;
@@ -65,7 +71,7 @@ export class UpdateContactDto {
     if (typeof value === 'string') {
       return value
         .split(',')
-        .map((tag) => tag.trim())
+        .map((label) => label.trim())
         .filter(Boolean);
     }
 
@@ -73,7 +79,7 @@ export class UpdateContactDto {
   })
   @IsArray()
   @IsString({ each: true })
-  readonly tags?: string[];
+  readonly labels?: string[];
 
   @IsOptional()
   @IsObject()

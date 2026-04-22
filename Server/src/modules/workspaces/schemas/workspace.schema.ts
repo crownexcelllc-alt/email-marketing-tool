@@ -19,6 +19,9 @@ export class Workspace {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   createdBy!: Types.ObjectId;
 
+  @Prop({ type: [String], default: [] })
+  categories!: string[];
+
   @Prop({ type: [WorkspaceMember], default: [] })
   members!: WorkspaceMember[];
 }

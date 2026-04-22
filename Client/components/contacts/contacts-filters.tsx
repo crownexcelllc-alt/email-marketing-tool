@@ -4,19 +4,21 @@ import { Input } from '@/components/ui/input';
 interface ContactsFiltersProps {
   search: string;
   status: string;
-  tags: string;
+  category: string;
+  categoryOptions: string[];
   onSearchChange: (value: string) => void;
   onStatusChange: (value: string) => void;
-  onTagsChange: (value: string) => void;
+  onCategoryChange: (value: string) => void;
 }
 
 export function ContactsFilters({
   search,
   status,
-  tags,
+  category,
+  categoryOptions,
   onSearchChange,
   onStatusChange,
-  onTagsChange,
+  onCategoryChange,
 }: ContactsFiltersProps) {
   return (
     <div className="grid gap-3 lg:grid-cols-[1.2fr_0.6fr_0.8fr]">
@@ -42,12 +44,18 @@ export function ContactsFilters({
         <option value="suppressed">Suppressed</option>
       </select>
 
-      <Input
-        className="border-zinc-800 bg-zinc-900 text-zinc-100"
-        placeholder="Tags (comma separated)"
-        value={tags}
-        onChange={(event) => onTagsChange(event.target.value)}
-      />
+      <select
+        className="h-10 rounded-md border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100"
+        value={category}
+        onChange={(event) => onCategoryChange(event.target.value)}
+      >
+        <option value="">All Categories</option>
+        {categoryOptions.map((categoryOption) => (
+          <option key={categoryOption} value={categoryOption}>
+            {categoryOption}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

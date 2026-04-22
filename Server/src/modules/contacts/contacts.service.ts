@@ -11,7 +11,9 @@ import {
   ContactWhatsappStatus,
 } from './constants/contact.enums';
 import { BulkDeleteContactsDto } from './dto/bulk-delete-contacts.dto';
+import { BulkCategoryUpdateDto } from './dto/bulk-category-update.dto';
 import { BulkTagUpdateDto } from './dto/bulk-tag-update.dto';
+import { CreateContactCategoryDto } from './dto/create-contact-category.dto';
 import { CreateContactDto } from './dto/create-contact.dto';
 import { ImportContactsDto } from './dto/import-contacts.dto';
 import { ListContactsDto } from './dto/list-contacts.dto';
@@ -20,6 +22,7 @@ import { Contact, ContactDocument } from './schemas/contact.schema';
 import { ContactsImportJobService } from './contacts-import-job.service';
 import { ContactsImportService, ParsedContactCsvRow } from './contacts-import.service';
 import {
+  ContactCategorySummaryResponse,
   ContactImportResultResponse,
   ContactListResponse,
   ContactResponse,
@@ -32,7 +35,8 @@ interface ContactWriteInput {
   email?: string | null;
   phone?: string | null;
   company?: string;
-  tags?: string[];
+  category?: string;
+  labels?: string[];
   customFields?: Record<string, unknown>;
   emailStatus?: ContactEmailStatus;
   whatsappStatus?: ContactWhatsappStatus;
@@ -55,6 +59,10 @@ export class ContactsService {
     const workspaceId = await this.resolveWorkspaceId(authUser);
     const payload = this.buildContactPayload(dto);
 
+    if (payload.category) {
+      await this.workspacesService.ensureCategories(workspaceId, [payload.category]);
+    }
+
     const created = await this.saveWithDuplicateHandling(
       new this.contactModel({
         workspaceId: this.toObjectId(workspaceId),
@@ -63,6 +71,22 @@ export class ContactsService {
     );
 
     return this.toResponse(created);
+  }
+
+  async createCategory(
+    dto: CreateContactCategoryDto,
+    authUser: AuthUser,
+  ): Promise<{ category: string }> {
+    const workspaceId = await this.resolveWorkspaceId(authUser);
+    const category = this.normalizeCategory(dto.category);
+
+    if (!category) {
+      throw new AppException(HttpStatus.BAD_REQUEST, 'CATEGORY_REQUIRED', 'Category is required');
+    }
+
+    await this.workspacesService.ensureCategories(workspaceId, [category]);
+
+    return { category };
   }
 
   async findAll(query: ListContactsDto, authUser: AuthUser): Promise<ContactListResponse> {
@@ -74,6 +98,7 @@ export class ContactsService {
     const filter: Record<string, unknown> = {
       workspaceId: this.toObjectId(workspaceId),
     };
+    const andConditions: Record<string, unknown>[] = [];
 
     if (query.emailStatus) {
       filter.emailStatus = query.emailStatus;
@@ -87,22 +112,59 @@ export class ContactsService {
     if (query.source) {
       filter.source = query.source;
     }
-    if (query.tags?.length) {
-      filter.tags = { $in: query.tags.map((tag) => this.normalizeTag(tag)) };
+    if (query.category) {
+      const normalizedCategory = this.cleanString(query.category).toLowerCase();
+      andConditions.push({
+        $or: [
+          { category: normalizedCategory },
+          {
+            $and: [
+              {
+                $or: [{ category: '' }, { category: null }, { category: { $exists: false } }],
+              },
+              { 'labels.0': normalizedCategory },
+            ],
+          },
+          {
+            $and: [
+              {
+                $or: [{ category: '' }, { category: null }, { category: { $exists: false } }],
+              },
+              {
+                $or: [
+                  { labels: { $exists: false } },
+                  { labels: { $size: 0 } },
+                  { 'labels.0': '' },
+                ],
+              },
+              { 'tags.0': normalizedCategory },
+            ],
+          },
+        ],
+      });
+    }
+    if (query.labels?.length) {
+      filter.labels = { $in: query.labels.map((label) => this.normalizeLabel(label)) };
     }
 
     if (query.search) {
       const escaped = this.escapeRegex(query.search.trim());
       const searchRegex = new RegExp(escaped, 'i');
 
-      filter.$or = [
-        { fullName: searchRegex },
-        { firstName: searchRegex },
-        { lastName: searchRegex },
-        { email: searchRegex },
-        { phone: searchRegex },
-        { company: searchRegex },
-      ];
+      andConditions.push({
+        $or: [
+          { fullName: searchRegex },
+          { firstName: searchRegex },
+          { lastName: searchRegex },
+          { email: searchRegex },
+          { phone: searchRegex },
+          { company: searchRegex },
+        ],
+      });
+    }
+
+    if (andConditions.length > 0) {
+      filter.$and = andConditions;
     }
 
     const [items, total] = await Promise.all([
@@ -135,6 +197,101 @@ export class ContactsService {
     return this.toResponse(contact);
   }
 
+  async getCategorySummary(authUser: AuthUser): Promise<ContactCategorySummaryResponse> {
+    const workspaceId = await this.resolveWorkspaceId(authUser);
+    const workspaceObjectId = this.toObjectId(workspaceId);
+
+    const [total, categoryGroups] = await Promise.all([
+      this.contactModel
+        .countDocuments({
+          workspaceId: workspaceObjectId,
+        })
+        .exec(),
+      this.contactModel
+        .aggregate<{ category: string; count: number }>([
+          {
+            $match: {
+              workspaceId: workspaceObjectId,
+            },
+          },
+          {
+            $project: {
+              effectiveCategory: {
+                $let: {
+                  vars: {
+                    categoryValue: { $trim: { input: { $ifNull: ['$category', ''] } } },
+                    labelValue: {
+                      $trim: {
+                        input: { $ifNull: [{ $arrayElemAt: ['$labels', 0] }, ''] },
+                      },
+                    },
+                    tagValue: {
+                      $trim: {
+                        input: { $ifNull: [{ $arrayElemAt: ['$tags', 0] }, ''] },
+                      },
+                    },
+                  },
+                  in: {
+                    $toLower: {
+                      $cond: [
+                        { $gt: [{ $strLenCP: '$$categoryValue' }, 0] },
+                        '$$categoryValue',
+                        {
+                          $cond: [
+                            { $gt: [{ $strLenCP: '$$labelValue' }, 0] },
+                            '$$labelValue',
+                            '$$tagValue',
+                          ],
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          },
+          {
+            $match: {
+              effectiveCategory: { $type: 'string', $ne: '' },
+            },
+          },
+          {
+            $group: {
+              _id: '$effectiveCategory',
+              count: { $sum: 1 },
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              category: '$_id',
+              count: 1,
+            },
+          },
+          {
+            $sort: {
+              category: 1,
+            },
+          },
+        ])
+        .exec(),
+    ]);
+
+    const workspaceCategories = await this.workspacesService.listCategories(workspaceId);
+    const countsByCategory = new Map(categoryGroups.map((item) => [item.category, item.count]));
+    const allCategories = Array.from(
+      new Set([...workspaceCategories, ...categoryGroups.map((item) => item.category)]),
+    ).sort((a, b) => a.localeCompare(b));
+
+    return {
+      total,
+      categories: allCategories.map((category) => ({
+        category,
+        count: countsByCategory.get(category) ?? 0,
+      })),
+    };
+  }
+
   async update(id: string, dto: UpdateContactDto, authUser: AuthUser): Promise<ContactResponse> {
     const contact = await this.findOwnedContact(id, authUser);
 
@@ -145,7 +302,8 @@ export class ContactsService {
       email: dto.email ?? contact.email,
       phone: dto.phone ?? contact.phone,
       company: dto.company ?? contact.company,
-      tags: dto.tags ?? contact.tags,
+      category: dto.category ?? contact.category,
+      labels: dto.labels ?? (contact.labels?.length ? contact.labels : contact.tags),
       customFields: dto.customFields ?? contact.customFields,
       emailStatus: dto.emailStatus ?? contact.emailStatus,
       whatsappStatus: dto.whatsappStatus ?? contact.whatsappStatus,
@@ -162,6 +320,9 @@ export class ContactsService {
     contact.emailNormalized = merged.emailNormalized;
     contact.phoneNormalized = merged.phoneNormalized;
     contact.company = merged.company;
+    contact.category = merged.category;
+    contact.labels = merged.labels;
+    // Keep legacy tags synchronized while downstream modules migrate.
     contact.tags = merged.tags;
     contact.customFields = merged.customFields;
     contact.emailStatus = merged.emailStatus;
@@ -171,6 +332,11 @@ export class ContactsService {
     contact.notes = merged.notes;
 
     const saved = await this.saveWithDuplicateHandling(contact);
+
+    if (merged.category) {
+      await this.workspacesService.ensureCategories(contact.workspaceId.toString(), [merged.category]);
+    }
+
     return this.toResponse(saved);
   }
 
@@ -204,21 +370,60 @@ export class ContactsService {
     };
   }
 
+  async bulkCategoryUpdate(
+    dto: BulkCategoryUpdateDto,
+    authUser: AuthUser,
+  ): Promise<{ requested: number; modified: number }> {
+    const workspaceId = await this.resolveWorkspaceId(authUser);
+    const category = this.normalizeCategory(dto.category);
+
+    if (!category) {
+      throw new AppException(
+        HttpStatus.BAD_REQUEST,
+        'CATEGORY_REQUIRED',
+        'Category is required',
+      );
+    }
+
+    const result = await this.contactModel
+      .updateMany(
+        {
+          workspaceId: this.toObjectId(workspaceId),
+          _id: { $in: dto.ids.map((id) => this.toObjectId(id)) },
+        },
+        {
+          $set: { category },
+        },
+      )
+      .exec();
+
+    await this.workspacesService.ensureCategories(workspaceId, [category]);
+
+    return {
+      requested: dto.ids.length,
+      modified: result.modifiedCount,
+    };
+  }
+
   async bulkTagUpdate(
     dto: BulkTagUpdateDto,
     authUser: AuthUser,
   ): Promise<{ requested: number; modified: number }> {
     const workspaceId = await this.resolveWorkspaceId(authUser);
 
-    const addTags = this.normalizeTags(dto.addTags ?? []);
-    const removeTags = this.normalizeTags(dto.removeTags ?? []);
-    const setTags = dto.setTags ? this.normalizeTags(dto.setTags) : undefined;
+    const addLabels = this.normalizeLabels(dto.addLabels ?? dto.addTags ?? []);
+    const removeLabels = this.normalizeLabels(dto.removeLabels ?? dto.removeTags ?? []);
+    const setLabels = dto.setLabels
+      ? this.normalizeLabels(dto.setLabels)
+      : dto.setTags
+        ? this.normalizeLabels(dto.setTags)
+        : undefined;
 
-    if (!setTags && !addTags.length && !removeTags.length) {
+    if (!setLabels && !addLabels.length && !removeLabels.length) {
       throw new AppException(
         HttpStatus.BAD_REQUEST,
-        'BULK_TAG_ACTION_REQUIRED',
-        'At least one of setTags, addTags, or removeTags is required',
+        'BULK_LABEL_ACTION_REQUIRED',
+        'At least one of setLabels, addLabels, or removeLabels is required',
       );
     }
 
@@ -229,17 +434,25 @@ export class ContactsService {
 
     let result;
 
-    if (setTags) {
-      result = await this.contactModel.updateMany(filter, { $set: { tags: setTags } }).exec();
+    if (setLabels) {
+      result = await this.contactModel
+        .updateMany(filter, { $set: { labels: setLabels, tags: setLabels } })
+        .exec();
     } else {
       const update: Record<string, unknown> = {};
 
-      if (addTags.length) {
-        update.$addToSet = { tags: { $each: addTags } };
+      if (addLabels.length) {
+        update.$addToSet = {
+          labels: { $each: addLabels },
+          tags: { $each: addLabels },
+        };
       }
 
-      if (removeTags.length) {
-        update.$pull = { tags: { $in: removeTags } };
+      if (removeLabels.length) {
+        update.$pull = {
+          labels: { $in: removeLabels },
+          tags: { $in: removeLabels },
+        };
       }
 
       result = await this.contactModel.updateMany(filter, update).exec();
@@ -262,7 +475,7 @@ export class ContactsService {
 
     const workspaceId = await this.resolveWorkspaceId(authUser);
 
-    const source = dto.source ?? ContactSource.CSV_IMPORT;
+    const source = ContactSource.CSV_IMPORT;
     const parsed = this.contactsImportService.parseCsv(file.buffer, source);
 
     if (dto.queueOnly) {
@@ -327,7 +540,8 @@ export class ContactsService {
       email: row.email,
       phone: row.phone,
       company: row.company,
-      tags: row.tags,
+      category: row.category,
+      labels: row.labels,
       customFields: row.customFields,
       notes: row.notes,
       source: row.source,
@@ -373,6 +587,10 @@ export class ContactsService {
       true,
     );
 
+    if (payload.category) {
+      await this.workspacesService.ensureCategories(workspaceId, [payload.category]);
+    }
+
     return 'created';
   }
 
@@ -385,6 +603,8 @@ export class ContactsService {
     emailNormalized: string | null;
     phoneNormalized: string | null;
     company: string;
+    category: string;
+    labels: string[];
     tags: string[];
     customFields: Record<string, unknown>;
     emailStatus: ContactEmailStatus;
@@ -404,6 +624,7 @@ export class ContactsService {
 
     const email = this.normalizeEmail(input.email);
     const phone = this.normalizePhone(input.phone);
+    const labels = this.normalizeLabels(input.labels ?? []);
 
     if (!email && !phone) {
       throw new AppException(
@@ -430,7 +651,9 @@ export class ContactsService {
       emailNormalized: email,
       phoneNormalized: phone,
       company: this.cleanString(input.company),
-      tags: this.normalizeTags(input.tags ?? []),
+      category: this.normalizeCategory(input.category),
+      labels,
+      tags: labels,
       customFields: this.normalizeCustomFields(input.customFields),
       emailStatus: input.emailStatus ?? ContactEmailStatus.UNKNOWN,
       whatsappStatus: input.whatsappStatus ?? ContactWhatsappStatus.UNKNOWN,
@@ -441,6 +664,9 @@ export class ContactsService {
   }
 
   private toResponse(contact: ContactDocument): ContactResponse {
+    const labels = contact.labels?.length ? [...contact.labels] : [...contact.tags];
+    const category = contact.category || labels[0] || '';
+
     return {
       id: contact.id,
       workspaceId: contact.workspaceId.toString(),
@@ -450,7 +676,8 @@ export class ContactsService {
       email: contact.email,
       phone: contact.phone,
       company: contact.company,
-      tags: [...contact.tags],
+      category,
+      labels,
       customFields: this.normalizeCustomFields(contact.customFields),
       emailStatus: contact.emailStatus,
       whatsappStatus: contact.whatsappStatus,
@@ -553,14 +780,18 @@ export class ContactsService {
     return normalized || null;
   }
 
-  private normalizeTags(tags: string[]): string[] {
-    const normalized = tags.map((tag) => this.normalizeTag(tag)).filter(Boolean);
+  private normalizeLabels(labels: string[]): string[] {
+    const normalized = labels.map((label) => this.normalizeLabel(label)).filter(Boolean);
 
     return Array.from(new Set(normalized));
   }
 
-  private normalizeTag(tag: string): string {
-    return this.cleanString(tag).toLowerCase();
+  private normalizeLabel(label: string): string {
+    return this.cleanString(label).toLowerCase();
+  }
+
+  private normalizeCategory(category?: string): string {
+    return this.cleanString(category).toLowerCase();
   }
 
   private normalizeCustomFields(

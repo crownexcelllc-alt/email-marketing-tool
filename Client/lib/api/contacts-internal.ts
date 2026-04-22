@@ -38,6 +38,8 @@ export function normalizeContact(input: unknown): Contact {
     throw new Error('Contact payload is missing an ID.');
   }
 
+  const labels = getStringArray(record.labels);
+
   return {
     id,
     workspaceId: getString(record, ['workspaceId']),
@@ -47,7 +49,8 @@ export function normalizeContact(input: unknown): Contact {
     email: getString(record, ['email']),
     phone: getString(record, ['phone']),
     company: getString(record, ['company']),
-    tags: getStringArray(record.tags),
+    category: getString(record, ['category']),
+    labels: labels.length > 0 ? labels : getStringArray(record.tags),
     customFields:
       record.customFields !== null &&
       typeof record.customFields === 'object' &&

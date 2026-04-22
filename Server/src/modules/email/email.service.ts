@@ -227,6 +227,8 @@ export class EmailService {
         )
         .exec();
 
+      await this.tryMarkCampaignCompleted(context.campaign._id);
+
       await this.recordSendEvent({
         context,
         eventType: EmailSendEventType.SEND_SUCCESS,
@@ -306,6 +308,8 @@ export class EmailService {
           },
         )
         .exec();
+
+      await this.tryMarkCampaignCompleted(context.campaign._id);
 
       await this.recordSendEvent({
         context,
@@ -506,7 +510,8 @@ export class EmailService {
       email: context.contact.email,
       phone: context.contact.phone,
       company: context.contact.company,
-      tags: context.contact.tags,
+      category: context.contact.category,
+      labels: context.contact.labels,
       customFields: context.contact.customFields,
       campaign: {
         id: context.campaign._id.toString(),
@@ -557,6 +562,30 @@ export class EmailService {
           $inc: {
             'stats.skippedRecipients': 1,
             'stats.queuedRecipients': -1,
+          },
+        },
+      )
+      .exec();
+
+    await this.tryMarkCampaignCompleted(context.campaign._id);
+  }
+
+  /**
+   * Atomically flip a RUNNING campaign to COMPLETED once queuedRecipients
+   * reaches zero.  The condition on both `status` and `stats.queuedRecipients`
+   * ensures only one concurrent worker wins the race.
+   */
+  private async tryMarkCampaignCompleted(campaignId: Types.ObjectId): Promise<void> {
+    await this.campaignModel
+      .updateOne(
+        {
+          _id: campaignId,
+          status: CampaignStatus.RUNNING,
+          'stats.queuedRecipients': { $lte: 0 },
+        },
+        {
+          $set: {
+            status: CampaignStatus.COMPLETED,
           },
         },
       )

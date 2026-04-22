@@ -231,7 +231,8 @@ export class TemplatesService {
       email: 'alex@example.com',
       phone: '+15550001111',
       company: 'Acme Inc',
-      tags: ['vip', 'beta'],
+      category: 'vip',
+      labels: ['beta'],
       customFields: {
         city: 'Lahore',
         plan: 'pro',
@@ -260,7 +261,8 @@ export class TemplatesService {
         email: contact.email,
         phone: contact.phone,
         company: contact.company,
-        tags: contact.tags,
+        category: contact.category,
+        labels: contact.labels,
         customFields: contact.customFields,
       };
     }

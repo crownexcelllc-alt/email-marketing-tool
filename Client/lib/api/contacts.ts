@@ -1,6 +1,7 @@
 import { apiRequest } from '@/lib/api/fetcher';
 import { normalizeContact } from '@/lib/api/contacts-internal';
 import type {
+  ContactCategorySummaryResult,
   Contact,
   ContactFilters,
   ContactsImportResult,
@@ -8,6 +9,13 @@ import type {
   ContactsPagination,
 } from '@/lib/types/contact';
 import type { ContactFormValues } from '@/lib/validators/contact';
+
+const VALID_SUBSCRIPTION_STATUSES = new Set([
+  'subscribed',
+  'pending',
+  'unsubscribed',
+  'suppressed',
+]);
 
 function getRecord(input: unknown): Record<string, unknown> | null {
   if (input !== null && typeof input === 'object' && !Array.isArray(input)) {
@@ -58,17 +66,30 @@ function parsePagination(record: Record<string, unknown>, fallbackLimit: number)
 }
 
 function cleanPayload(values: ContactFormValues): Record<string, unknown> {
+  const normalizedSubscriptionStatus =
+    values.subscriptionStatus && VALID_SUBSCRIPTION_STATUSES.has(values.subscriptionStatus)
+      ? values.subscriptionStatus
+      : 'subscribed';
+
+  const normalizedCategory = values.category?.trim() || undefined;
+
+  const normalizedLabels = Array.from(
+    new Set(
+      (values.labels ?? [])
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0),
+    ),
+  );
+
   const payload: Record<string, unknown> = {
-    firstName: values.firstName?.trim() || undefined,
-    lastName: values.lastName?.trim() || undefined,
     fullName: values.fullName?.trim() || undefined,
     email: values.email?.trim() || undefined,
     phone: values.phone?.trim() || undefined,
     company: values.company?.trim() || undefined,
-    tags: values.tags ?? [],
-    source: values.source?.trim() || undefined,
+    category: normalizedCategory,
+    labels: normalizedLabels,
     notes: values.notes?.trim() || undefined,
-    subscriptionStatus: values.subscriptionStatus || undefined,
+    subscriptionStatus: normalizedSubscriptionStatus,
   };
 
   return payload;
@@ -83,7 +104,8 @@ export async function getContacts(filters: ContactFilters = {}): Promise<Contact
       page: filters.page ?? 1,
       limit,
       search: filters.search || undefined,
-      tags: filters.tags?.length ? filters.tags.join(',') : undefined,
+      category: filters.category || undefined,
+      labels: filters.labels?.length ? filters.labels.join(',') : undefined,
       subscriptionStatus: filters.status || undefined,
     },
   });
@@ -125,24 +147,81 @@ export async function getContacts(filters: ContactFilters = {}): Promise<Contact
   };
 }
 
-export async function createContact(values: ContactFormValues): Promise<Contact> {
-  const payload = await apiRequest<unknown, Record<string, unknown>>({
+export async function getContactCategorySummary(): Promise<ContactCategorySummaryResult> {
+  const payload = await apiRequest<unknown>({
+    method: 'GET',
+    url: '/contacts/categories/summary',
+  });
+
+  const record = getRecord(payload);
+  if (!record) {
+    return {
+      total: 0,
+      categories: [],
+    };
+  }
+
+  const categoriesRaw = Array.isArray(record.categories) ? record.categories : [];
+  const categories = categoriesRaw
+    .map((item) => {
+      const entry = getRecord(item);
+      if (!entry) {
+        return null;
+      }
+
+      const category = getString(entry, ['category']);
+      const count = getNumber(entry, ['count']) ?? 0;
+
+      if (!category) {
+        return null;
+      }
+
+      return {
+        category,
+        count,
+      };
+    })
+    .filter((item): item is { category: string; count: number } => Boolean(item));
+
+  return {
+    total: getNumber(record, ['total']) ?? 0,
+    categories,
+  };
+}
+
+export async function createContactCategory(category: string): Promise<{ category: string }> {
+  const payload = await apiRequest<unknown, { category: string }>({
+    method: 'POST',
+    url: '/contacts/categories',
+    data: {
+      category,
+    },
+  });
+
+  const record = getRecord(payload);
+  if (!record) {
+    return { category };
+  }
+
+  return {
+    category: getString(record, ['category']) ?? category,
+  };
+}
+
+export async function createContact(values: ContactFormValues): Promise<void> {
+  await apiRequest<unknown, Record<string, unknown>>({
     method: 'POST',
     url: '/contacts',
     data: cleanPayload(values),
   });
-
-  return normalizeContact(payload);
 }
 
-export async function updateContact(id: string, values: ContactFormValues): Promise<Contact> {
-  const payload = await apiRequest<unknown, Record<string, unknown>>({
+export async function updateContact(id: string, values: ContactFormValues): Promise<void> {
+  await apiRequest<unknown, Record<string, unknown>>({
     method: 'PATCH',
     url: `/contacts/${id}`,
     data: cleanPayload(values),
   });
-
-  return normalizeContact(payload);
 }
 
 export async function deleteContact(id: string): Promise<void> {
@@ -204,16 +283,43 @@ export async function bulkDeleteContacts(ids: string[]): Promise<{ requested: nu
   };
 }
 
-export async function bulkAddTagToContacts(
+export async function bulkSetCategoryToContacts(
   ids: string[],
-  tag: string,
+  category: string,
 ): Promise<{ requested: number; modified: number }> {
-  const payload = await apiRequest<unknown, { ids: string[]; addTags: string[] }>({
+  const payload = await apiRequest<unknown, { ids: string[]; category: string }>({
     method: 'POST',
-    url: '/contacts/bulk-tags',
+    url: '/contacts/bulk-category',
     data: {
       ids,
-      addTags: [tag],
+      category,
+    },
+  });
+
+  const record = getRecord(payload);
+  if (!record) {
+    return {
+      requested: ids.length,
+      modified: ids.length,
+    };
+  }
+
+  return {
+    requested: getNumber(record, ['requested']) ?? ids.length,
+    modified: getNumber(record, ['modified']) ?? 0,
+  };
+}
+
+export async function bulkAddLabelToContacts(
+  ids: string[],
+  label: string,
+): Promise<{ requested: number; modified: number }> {
+  const payload = await apiRequest<unknown, { ids: string[]; addLabels: string[] }>({
+    method: 'POST',
+    url: '/contacts/bulk-labels',
+    data: {
+      ids,
+      addLabels: [label],
     },
   });
 

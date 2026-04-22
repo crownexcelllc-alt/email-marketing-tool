@@ -27,6 +27,11 @@ export class ListContactsDto {
   readonly search?: string;
 
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  readonly category?: string;
+
+  @IsOptional()
   @Transform(({ value }) => {
     if (Array.isArray(value)) {
       return value;
@@ -35,7 +40,7 @@ export class ListContactsDto {
     if (typeof value === 'string') {
       return value
         .split(',')
-        .map((tag) => tag.trim())
+        .map((label) => label.trim())
         .filter(Boolean);
     }
 
@@ -43,7 +48,7 @@ export class ListContactsDto {
   })
   @IsArray()
   @IsString({ each: true })
-  readonly tags?: string[];
+  readonly labels?: string[];
 
   @IsOptional()
   @IsEnum(ContactEmailStatus)

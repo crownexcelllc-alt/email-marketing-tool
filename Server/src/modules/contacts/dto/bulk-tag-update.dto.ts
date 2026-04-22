@@ -9,6 +9,21 @@ export class BulkTagUpdateDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
+  readonly addLabels?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  readonly removeLabels?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  readonly setLabels?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   readonly addTags?: string[];
 
   @IsOptional()

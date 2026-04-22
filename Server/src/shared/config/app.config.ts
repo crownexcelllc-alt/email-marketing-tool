@@ -24,11 +24,17 @@ export const redisConfig = registerAs('redis', () => ({
   port: Number(process.env.REDIS_PORT ?? 6379),
   password: process.env.REDIS_PASSWORD || undefined,
   db: Number(process.env.REDIS_DB ?? 0),
+  connectTimeoutMs: Number(process.env.REDIS_CONNECT_TIMEOUT_MS ?? 10000),
+  retryDelayMs: Number(process.env.REDIS_RETRY_DELAY_MS ?? 1000),
+  retryMaxAttempts: Number(process.env.REDIS_RETRY_MAX_ATTEMPTS ?? 5),
+  family: Number(process.env.REDIS_FAMILY ?? 0),
   keyPrefix: process.env.BULLMQ_PREFIX ?? 'marketing-platform',
   skipVersionCheck: (process.env.BULLMQ_SKIP_VERSION_CHECK ?? 'false') === 'true',
+  skipWaitingForReady: (process.env.BULLMQ_SKIP_WAITING_FOR_READY ?? 'true') === 'true',
 }));
 
 export const queueConfig = registerAs('queues', () => ({
+  workersEnabled: (process.env.QUEUE_WORKERS_ENABLED ?? 'false') === 'true',
   defaultAttempts: Number(process.env.QUEUE_DEFAULT_ATTEMPTS ?? 5),
   defaultBackoffMs: Number(process.env.QUEUE_DEFAULT_BACKOFF_MS ?? 5000),
   concurrency: {

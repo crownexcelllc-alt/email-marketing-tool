@@ -5,8 +5,9 @@ export const campaignBuilderSchema = z
     name: z.string().min(2, 'Campaign name must be at least 2 characters.'),
     description: z.string().optional(),
     channel: z.enum(['email', 'whatsapp']),
-    targetMode: z.enum(['segment', 'contacts']),
+    targetMode: z.enum(['segment', 'contacts', 'category']),
     segmentId: z.string().optional(),
+    categoryName: z.string().optional(),
     contactIds: z.array(z.string()).default([]),
     senderAccountIds: z.array(z.string()).min(1, 'Select at least one sender account.'),
     templateId: z.string().min(1, 'Select a template.'),
@@ -51,6 +52,14 @@ export const campaignBuilderSchema = z
         code: z.ZodIssueCode.custom,
         path: ['contactIds'],
         message: 'Select at least one contact.',
+      });
+    }
+
+    if (values.targetMode === 'category' && !values.categoryName) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['categoryName'],
+        message: 'Select a category.',
       });
     }
 

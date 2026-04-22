@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   extractTemplateVariablesFromParts,
@@ -15,6 +16,17 @@ export function TemplatePreviewPanel({ type, subject, body }: TemplatePreviewPan
   const variables = extractTemplateVariablesFromParts([subject, body]);
   const previewSubject = renderTemplateWithSampleData(subject || '(no subject)');
   const previewBody = renderTemplateWithSampleData(body || '(no body)');
+  const previewDocument = useMemo(() => {
+    if (type !== 'email') {
+      return '';
+    }
+
+    if (/<html[\s>]/i.test(previewBody)) {
+      return previewBody;
+    }
+
+    return `<!doctype html><html><head><meta charset="utf-8" /></head><body>${previewBody}</body></html>`;
+  }, [previewBody, type]);
 
   return (
     <Card className="border-zinc-800 bg-zinc-900/70 text-zinc-100">
@@ -49,12 +61,20 @@ export function TemplatePreviewPanel({ type, subject, body }: TemplatePreviewPan
 
         <div className="space-y-1">
           <p className="text-xs uppercase tracking-wide text-zinc-500">Rendered Body</p>
-          <pre className="whitespace-pre-wrap rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300">
-            {previewBody}
-          </pre>
+          {type === 'email' ? (
+            <iframe
+              title="Email template preview"
+              className="h-[360px] w-full rounded-md border border-zinc-800 bg-white"
+              sandbox=""
+              srcDoc={previewDocument}
+            />
+          ) : (
+            <pre className="whitespace-pre-wrap rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300">
+              {previewBody}
+            </pre>
+          )}
         </div>
       </CardContent>
     </Card>
   );
 }
-

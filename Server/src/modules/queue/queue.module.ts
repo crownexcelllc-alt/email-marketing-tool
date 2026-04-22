@@ -1,4 +1,4 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Logger, Module, OnModuleInit } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
@@ -22,7 +22,11 @@ import { ContactImportProcessor } from './processors/contact-import.processor';
 import { EmailSendProcessor } from './processors/email-send.processor';
 import { WebhookProcessingProcessor } from './processors/webhook-processing.processor';
 import { WhatsappSendProcessor } from './processors/whatsapp-send.processor';
-import { QUEUE_DEFAULT_JOB_OPTIONS, REGISTERED_QUEUES } from './queue.constants';
+import {
+  QUEUE_DEFAULT_JOB_OPTIONS,
+  QUEUE_WORKERS_ENABLED,
+  REGISTERED_QUEUES,
+} from './queue.constants';
 import {
   BULLMQ_SHARED_CONNECTION,
   bullmqSharedConnectionProvider,
@@ -30,6 +34,29 @@ import {
 } from './queue.shared.providers';
 import { QueueController } from './queue.controller';
 import { QueueService } from './queue.service';
+
+const queueProcessorProviders = QUEUE_WORKERS_ENABLED
+  ? [
+      ContactImportProcessor,
+      CampaignSchedulerProcessor,
+      EmailSendProcessor,
+      WhatsappSendProcessor,
+      WebhookProcessingProcessor,
+      AnalyticsAggregationProcessor,
+    ]
+  : [];
+
+class QueueRuntimeModeReporter implements OnModuleInit {
+  private readonly logger = new Logger(QueueRuntimeModeReporter.name);
+
+  onModuleInit(): void {
+    if (!QUEUE_WORKERS_ENABLED) {
+      this.logger.warn(
+        'Queue workers are disabled in this process (QUEUE_WORKERS_ENABLED=false). Jobs will enqueue but not be processed here.',
+      );
+    }
+  }
+}
 
 @Global()
 @Module({
@@ -42,6 +69,9 @@ import { QueueService } from './queue.service';
         connection: connection as never,
         prefix: configService.get<string>('redis.keyPrefix', { infer: true }),
         skipVersionCheck: configService.get<boolean>('redis.skipVersionCheck', {
+          infer: true,
+        }),
+        skipWaitingForReady: configService.get<boolean>('redis.skipWaitingForReady', {
           infer: true,
         }),
         defaultJobOptions: QUEUE_DEFAULT_JOB_OPTIONS,
@@ -60,12 +90,8 @@ import { QueueService } from './queue.service';
   controllers: [QueueController],
   providers: [
     QueueService,
-    ContactImportProcessor,
-    CampaignSchedulerProcessor,
-    EmailSendProcessor,
-    WhatsappSendProcessor,
-    WebhookProcessingProcessor,
-    AnalyticsAggregationProcessor,
+    QueueRuntimeModeReporter,
+    ...queueProcessorProviders,
   ],
   exports: [BullModule, QueueService],
 })

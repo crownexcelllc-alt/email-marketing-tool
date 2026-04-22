@@ -44,6 +44,42 @@ export class WorkspacesService {
     return this.workspaceModel.findById(workspaceId).exec();
   }
 
+  async ensureCategories(workspaceId: string, categories: string[]): Promise<void> {
+    const normalized = Array.from(
+      new Set(
+        categories
+          .map((category) => category.trim().toLowerCase())
+          .filter((category) => category.length > 0),
+      ),
+    );
+
+    if (normalized.length === 0) {
+      return;
+    }
+
+    await this.workspaceModel
+      .updateOne(
+        { _id: this.toObjectId(workspaceId, 'INVALID_WORKSPACE_ID') },
+        {
+          $addToSet: {
+            categories: { $each: normalized },
+          },
+        },
+      )
+      .exec();
+  }
+
+  async listCategories(workspaceId: string): Promise<string[]> {
+    const workspace = await this.findById(workspaceId);
+    if (!workspace) {
+      return [];
+    }
+
+    return Array.from(
+      new Set((workspace.categories ?? []).map((category) => category.trim().toLowerCase()).filter(Boolean)),
+    ).sort((a, b) => a.localeCompare(b));
+  }
+
   private resolveDefaultWorkspaceName(fullName: string, customName?: string): string {
     const name = customName?.trim();
     if (name) {

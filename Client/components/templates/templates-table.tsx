@@ -71,6 +71,16 @@ function truncate(value: string, length: number): string {
   return `${value.slice(0, length)}...`;
 }
 
+function toSummaryText(body: string): string {
+  const stripped = body
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return stripped || '(empty body)';
+}
+
 export function TemplatesTable({
   templates,
   isLoading = false,
@@ -111,7 +121,9 @@ export function TemplatesTable({
               <TableCell>
                 <div className="space-y-1">
                   <p className="font-medium text-zinc-100">{template.name}</p>
-                  <p className="line-clamp-1 text-xs text-zinc-500">{truncate(template.body, 65)}</p>
+                  <p className="line-clamp-1 text-xs text-zinc-500">
+                    {truncate(toSummaryText(template.body), 65)}
+                  </p>
                 </div>
               </TableCell>
               <TableCell>
@@ -178,4 +190,3 @@ export function TemplatesTable({
     </Table>
   );
 }
-

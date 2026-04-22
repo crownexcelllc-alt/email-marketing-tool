@@ -1,4 +1,5 @@
-﻿import 'reflect-metadata';
+﻿import 'dotenv/config';
+import 'reflect-metadata';
 import { Logger, RequestMethod, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';

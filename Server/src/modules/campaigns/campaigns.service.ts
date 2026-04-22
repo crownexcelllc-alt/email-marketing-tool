@@ -758,6 +758,9 @@ export class CampaignsService {
   }
 
   private toContactResponse(contact: ContactDocument): ContactResponse {
+    const labels = contact.labels?.length ? [...contact.labels] : [...contact.tags];
+    const category = contact.category || labels[0] || '';
+
     return {
       id: contact.id,
       workspaceId: contact.workspaceId.toString(),
@@ -767,7 +770,8 @@ export class CampaignsService {
       email: contact.email,
       phone: contact.phone,
       company: contact.company,
-      tags: [...contact.tags],
+      category,
+      labels,
       customFields: { ...(contact.customFields ?? {}) },
       emailStatus: contact.emailStatus,
       whatsappStatus: contact.whatsappStatus,

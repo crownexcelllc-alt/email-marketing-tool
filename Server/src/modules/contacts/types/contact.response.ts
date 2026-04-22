@@ -14,7 +14,8 @@ export interface ContactResponse {
   email: string | null;
   phone: string | null;
   company: string;
-  tags: string[];
+  category: string;
+  labels: string[];
   customFields: Record<string, unknown>;
   emailStatus: ContactEmailStatus;
   whatsappStatus: ContactWhatsappStatus;
@@ -51,4 +52,14 @@ export interface ContactImportResultResponse {
     row: number;
     reason: string;
   }>;
+}
+
+export interface ContactCategorySummaryItemResponse {
+  category: string;
+  count: number;
+}
+
+export interface ContactCategorySummaryResponse {
+  total: number;
+  categories: ContactCategorySummaryItemResponse[];
 }

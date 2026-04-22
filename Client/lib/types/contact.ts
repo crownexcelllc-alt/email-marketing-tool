@@ -9,7 +9,8 @@ export interface Contact {
   email?: string;
   phone?: string;
   company?: string;
-  tags: string[];
+  category?: string;
+  labels: string[];
   customFields?: Record<string, unknown>;
   emailStatus?: string;
   whatsappStatus?: string;
@@ -34,7 +35,8 @@ export interface ContactsListResult {
 
 export interface ContactFilters {
   search?: string;
-  tags?: string[];
+  category?: string;
+  labels?: string[];
   status?: string;
   page?: number;
   limit?: number;
@@ -45,5 +47,15 @@ export interface ContactsImportResult {
   skipped: number;
   invalid: number;
   message?: string;
+}
+
+export interface ContactCategorySummaryItem {
+  category: string;
+  count: number;
+}
+
+export interface ContactCategorySummaryResult {
+  total: number;
+  categories: ContactCategorySummaryItem[];
 }
 

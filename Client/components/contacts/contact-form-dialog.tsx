@@ -21,22 +21,36 @@ interface ContactFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contact?: Contact | null;
+  categoryOptions?: string[];
   isSubmitting?: boolean;
   onSubmit: (values: ContactFormValues) => Promise<void>;
 }
 
+const VALID_SUBSCRIPTION_STATUSES = new Set([
+  'subscribed',
+  'pending',
+  'unsubscribed',
+  'suppressed',
+]);
+
+function normalizeSubscriptionStatus(value: string | undefined): string {
+  if (value && VALID_SUBSCRIPTION_STATUSES.has(value)) {
+    return value;
+  }
+
+  return 'subscribed';
+}
+
 function getDefaultValues(contact?: Contact | null): ContactFormValues {
   return {
-    firstName: contact?.firstName ?? '',
-    lastName: contact?.lastName ?? '',
     fullName: contact?.fullName ?? '',
     email: contact?.email ?? '',
     phone: contact?.phone ?? '',
     company: contact?.company ?? '',
-    tags: contact?.tags ?? [],
-    source: contact?.source ?? '',
+    category: contact?.category ?? contact?.labels?.[0] ?? '',
+    labels: contact?.labels ?? [],
     notes: contact?.notes ?? '',
-    subscriptionStatus: contact?.subscriptionStatus ?? 'subscribed',
+    subscriptionStatus: normalizeSubscriptionStatus(contact?.subscriptionStatus),
   };
 }
 
@@ -48,7 +62,7 @@ function FieldError({ message }: { message?: string }) {
   return <p className="text-xs text-rose-400">{message}</p>;
 }
 
-function parseTags(value: string): string[] {
+function parseLabels(value: string): string[] {
   return value
     .split(',')
     .map((item) => item.trim())
@@ -59,6 +73,7 @@ export function ContactFormDialog({
   open,
   onOpenChange,
   contact,
+  categoryOptions = [],
   isSubmitting = false,
   onSubmit,
 }: ContactFormDialogProps) {
@@ -68,9 +83,9 @@ export function ContactFormDialog({
     defaultValues: getDefaultValues(contact),
   });
 
-  const tags = useWatch({
+  const labels = useWatch({
     control: form.control,
-    name: 'tags',
+    name: 'labels',
   }) ?? [];
 
   useEffect(() => {
@@ -87,30 +102,12 @@ export function ContactFormDialog({
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Edit Contact' : 'Add Contact'}</DialogTitle>
           <DialogDescription>
-            Manage contact profile, tags, and subscription metadata.
+            Manage contact details, category, labels, and subscription metadata.
           </DialogDescription>
         </DialogHeader>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="firstName">First Name</Label>
-              <Input
-                id="firstName"
-                className="border-zinc-800 bg-zinc-900 text-zinc-100"
-                {...form.register('firstName')}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="lastName">Last Name</Label>
-              <Input
-                id="lastName"
-                className="border-zinc-800 bg-zinc-900 text-zinc-100"
-                {...form.register('lastName')}
-              />
-            </div>
-
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="fullName">Full Name</Label>
               <Input
@@ -150,6 +147,22 @@ export function ContactFormDialog({
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="category">Category</Label>
+              <select
+                id="category"
+                className="h-10 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100"
+                {...form.register('category')}
+              >
+                <option value="">Select category</option>
+                {categoryOptions.map((categoryOption) => (
+                  <option key={categoryOption} value={categoryOption}>
+                    {categoryOption}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="subscriptionStatus">Subscription Status</Label>
               <select
                 id="subscriptionStatus"
@@ -164,35 +177,19 @@ export function ContactFormDialog({
             </div>
 
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="tags">Tags</Label>
+              <Label htmlFor="labels">Labels</Label>
               <Input
-                id="tags"
+                id="labels"
                 className="border-zinc-800 bg-zinc-900 text-zinc-100"
-                placeholder="vip, newsletter, trial"
-                value={tags.join(', ')}
+                placeholder="newsletter, high_priority"
+                value={labels.join(', ')}
                 onChange={(event) => {
-                  form.setValue('tags', parseTags(event.target.value), {
+                  form.setValue('labels', parseLabels(event.target.value), {
                     shouldDirty: true,
                     shouldValidate: false,
                   });
                 }}
               />
-            </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="source">Source</Label>
-              <select
-                id="source"
-                className="h-10 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100"
-                {...form.register('source')}
-              >
-                <option value="">Select source</option>
-                <option value="manual">Manual</option>
-                <option value="csv_import">CSV Import</option>
-                <option value="api">API</option>
-                <option value="webhook">Webhook</option>
-              </select>
-              <FieldError message={form.formState.errors.source?.message} />
             </div>
 
             <div className="space-y-2 md:col-span-2">

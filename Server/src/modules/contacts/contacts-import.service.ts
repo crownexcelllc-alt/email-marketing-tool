@@ -11,7 +11,8 @@ export interface ParsedContactCsvRow {
   email?: string;
   phone?: string;
   company?: string;
-  tags?: string[];
+  category?: string;
+  labels?: string[];
   customFields?: Record<string, unknown>;
   notes?: string;
   source?: ContactSource;
@@ -54,6 +55,9 @@ export class ContactsImportService {
   ): ParsedContactCsvRow {
     const normalizedRecord = this.normalizeRecordKeys(record);
 
+    const parsedCategory = this.parseList(this.readValue(normalizedRecord, ['category', 'categories']));
+    const parsedLabels = this.parseList(this.readValue(normalizedRecord, ['labels', 'label', 'tags']));
+
     return {
       rowNumber,
       firstName: this.readValue(normalizedRecord, ['firstname', 'first_name']),
@@ -62,7 +66,8 @@ export class ContactsImportService {
       email: this.readValue(normalizedRecord, ['email']),
       phone: this.readValue(normalizedRecord, ['phone', 'phonenumber', 'phone_number']),
       company: this.readValue(normalizedRecord, ['company']),
-      tags: this.parseTags(this.readValue(normalizedRecord, ['tags'])),
+      category: parsedCategory?.[0],
+      labels: parsedLabels,
       customFields: this.parseCustomFields(
         this.readValue(normalizedRecord, ['customfields', 'custom_fields']),
       ),
@@ -89,14 +94,14 @@ export class ContactsImportService {
     return undefined;
   }
 
-  private parseTags(value: string | undefined): string[] | undefined {
+  private parseList(value: string | undefined): string[] | undefined {
     if (!value) {
       return undefined;
     }
 
     return value
       .split(/[;,]/)
-      .map((tag) => tag.trim())
+      .map((item) => item.trim())
       .filter(Boolean);
   }
 

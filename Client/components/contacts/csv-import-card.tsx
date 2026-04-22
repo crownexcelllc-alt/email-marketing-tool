@@ -1,6 +1,6 @@
 'use client';
 
-import { Upload } from 'lucide-react';
+import { Download, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,7 +31,8 @@ export function CsvImportCard({ isImporting = false, onImport }: CsvImportCardPr
       <CardHeader>
         <CardTitle className="text-base">CSV Import</CardTitle>
         <CardDescription className="text-zinc-400">
-          Upload contacts in bulk using a CSV file.
+          Upload contacts in bulk using a CSV file. Use `category` to auto-assign categories and
+          `labels` for email labeling.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -42,6 +43,12 @@ export function CsvImportCard({ isImporting = false, onImport }: CsvImportCardPr
           className="block w-full text-sm text-zinc-400 file:mr-4 file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-2 file:text-sm file:font-medium file:text-zinc-100 hover:file:bg-zinc-700"
           onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
         />
+        <Button type="button" variant="outline" className="sm:w-auto" asChild>
+          <a href="/contacts-import-template.csv" download>
+            <Download className="mr-2 h-4 w-4" />
+            Download Template
+          </a>
+        </Button>
         <Button
           type="button"
           className="sm:w-auto"

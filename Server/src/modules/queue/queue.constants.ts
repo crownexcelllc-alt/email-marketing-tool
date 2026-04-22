@@ -18,6 +18,14 @@ const toPositiveNumber = (value: string | undefined, fallback: number): number =
   return parsed;
 };
 
+const toBoolean = (value: string | undefined, fallback: boolean): boolean => {
+  if (value === undefined) {
+    return fallback;
+  }
+
+  return value === 'true';
+};
+
 export const QUEUE_NAMES = {
   CONTACT_IMPORT: 'contact-import',
   CAMPAIGN_SCHEDULER: 'campaign-scheduler',
@@ -29,6 +37,21 @@ export const QUEUE_NAMES = {
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
 export const REGISTERED_QUEUES = Object.values(QUEUE_NAMES);
+
+export const QUEUE_WORKERS_ENABLED = toBoolean(
+  process.env.QUEUE_WORKERS_ENABLED,
+  (process.env.NODE_ENV ?? 'development') !== 'development',
+);
+
+export const QUEUE_WORKER_SKIP_VERSION_CHECK = toBoolean(
+  process.env.BULLMQ_SKIP_VERSION_CHECK,
+  false,
+);
+
+export const QUEUE_WORKER_SKIP_WAITING_FOR_READY = toBoolean(
+  process.env.BULLMQ_SKIP_WAITING_FOR_READY,
+  true,
+);
 
 export const QUEUE_CONCURRENCY = {
   [QUEUE_NAMES.CONTACT_IMPORT]: toPositiveInt(process.env.CONTACT_IMPORT_CONCURRENCY, 2),

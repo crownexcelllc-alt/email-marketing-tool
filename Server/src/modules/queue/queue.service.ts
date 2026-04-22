@@ -5,6 +5,7 @@ import {
   QUEUE_CONCURRENCY,
   QUEUE_DEFAULT_JOB_OPTIONS,
   QUEUE_NAMES,
+  QUEUE_WORKERS_ENABLED,
   QueueName,
   REGISTERED_QUEUES,
 } from './queue.constants';
@@ -32,6 +33,7 @@ export class QueueService {
     module: string;
     status: string;
     queues: string[];
+    workersEnabled: boolean;
     concurrency: Record<string, number>;
     defaults: JobsOptions;
   } {
@@ -39,6 +41,7 @@ export class QueueService {
       module: 'queue',
       status: 'ready',
       queues: REGISTERED_QUEUES,
+      workersEnabled: QUEUE_WORKERS_ENABLED,
       concurrency: QUEUE_CONCURRENCY,
       defaults: QUEUE_DEFAULT_JOB_OPTIONS,
     };

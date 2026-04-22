@@ -3,11 +3,18 @@ import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { AppException } from '../../../common/exceptions/app.exception';
 import { WhatsappSendWorkerInput, WhatsappService } from '../../whatsapp/whatsapp.service';
-import { QUEUE_CONCURRENCY, QUEUE_NAMES } from '../queue.constants';
+import {
+  QUEUE_CONCURRENCY,
+  QUEUE_NAMES,
+  QUEUE_WORKER_SKIP_VERSION_CHECK,
+  QUEUE_WORKER_SKIP_WAITING_FOR_READY,
+} from '../queue.constants';
 
 @Injectable()
 @Processor(QUEUE_NAMES.WHATSAPP_SEND, {
   concurrency: QUEUE_CONCURRENCY[QUEUE_NAMES.WHATSAPP_SEND],
+  skipVersionCheck: QUEUE_WORKER_SKIP_VERSION_CHECK,
+  skipWaitingForReady: QUEUE_WORKER_SKIP_WAITING_FOR_READY,
 })
 export class WhatsappSendProcessor extends WorkerHost {
   private readonly logger = new Logger(WhatsappSendProcessor.name);

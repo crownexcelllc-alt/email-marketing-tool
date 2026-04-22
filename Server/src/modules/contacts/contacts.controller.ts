@@ -17,13 +17,16 @@ import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { AuthUser } from '../../common/types/auth-user.type';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { BulkDeleteContactsDto } from './dto/bulk-delete-contacts.dto';
+import { BulkCategoryUpdateDto } from './dto/bulk-category-update.dto';
 import { BulkTagUpdateDto } from './dto/bulk-tag-update.dto';
+import { CreateContactCategoryDto } from './dto/create-contact-category.dto';
 import { CreateContactDto } from './dto/create-contact.dto';
 import { ImportContactsDto } from './dto/import-contacts.dto';
 import { ListContactsDto } from './dto/list-contacts.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
 import { ContactsService } from './contacts.service';
 import {
+  ContactCategorySummaryResponse,
   ContactImportResultResponse,
   ContactListResponse,
   ContactResponse,
@@ -42,12 +45,27 @@ export class ContactsController {
     return this.contactsService.create(dto, authUser);
   }
 
+  @Post('categories')
+  createCategory(
+    @Body() dto: CreateContactCategoryDto,
+    @CurrentUser() authUser: AuthUser,
+  ): Promise<{ category: string }> {
+    return this.contactsService.createCategory(dto, authUser);
+  }
+
   @Get()
   findAll(
     @Query() query: ListContactsDto,
     @CurrentUser() authUser: AuthUser,
   ): Promise<ContactListResponse> {
     return this.contactsService.findAll(query, authUser);
+  }
+
+  @Get('categories/summary')
+  getCategorySummary(
+    @CurrentUser() authUser: AuthUser,
+  ): Promise<ContactCategorySummaryResponse> {
+    return this.contactsService.getCategorySummary(authUser);
   }
 
   @Get(':id')
@@ -83,6 +101,22 @@ export class ContactsController {
     @CurrentUser() authUser: AuthUser,
   ): Promise<ContactImportResultResponse> {
     return this.contactsService.importCsv(file, dto, authUser);
+  }
+
+  @Post('bulk-labels')
+  bulkLabelUpdate(
+    @Body() dto: BulkTagUpdateDto,
+    @CurrentUser() authUser: AuthUser,
+  ): Promise<{ requested: number; modified: number }> {
+    return this.contactsService.bulkTagUpdate(dto, authUser);
+  }
+
+  @Post('bulk-category')
+  bulkCategoryUpdate(
+    @Body() dto: BulkCategoryUpdateDto,
+    @CurrentUser() authUser: AuthUser,
+  ): Promise<{ requested: number; modified: number }> {
+    return this.contactsService.bulkCategoryUpdate(dto, authUser);
   }
 
   @Post('bulk-tags')

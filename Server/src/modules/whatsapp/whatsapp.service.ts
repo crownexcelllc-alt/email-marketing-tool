@@ -259,6 +259,8 @@ export class WhatsappService {
         )
         .exec();
 
+      await this.tryMarkCampaignCompleted(context.campaign._id);
+
       await this.recordSendEvent({
         context,
         eventType: EmailSendEventType.SEND_SUCCESS,
@@ -364,6 +366,8 @@ export class WhatsappService {
         },
       )
       .exec();
+
+    await this.tryMarkCampaignCompleted(input.context.campaign._id);
 
     await this.recordSendEvent({
       context: input.context,
@@ -536,7 +540,8 @@ export class WhatsappService {
       email: context.contact.email,
       phone: context.contact.phone,
       company: context.contact.company,
-      tags: context.contact.tags,
+      category: context.contact.category,
+      labels: context.contact.labels,
       customFields: context.contact.customFields,
       campaign: {
         id: context.campaign._id.toString(),
@@ -641,6 +646,30 @@ export class WhatsappService {
           $inc: {
             'stats.skippedRecipients': 1,
             'stats.queuedRecipients': -1,
+          },
+        },
+      )
+      .exec();
+
+    await this.tryMarkCampaignCompleted(context.campaign._id);
+  }
+
+  /**
+   * Atomically flip a RUNNING campaign to COMPLETED once queuedRecipients
+   * reaches zero. The condition prevents multiple concurrent workers from
+   * marking it completed more than once.
+   */
+  private async tryMarkCampaignCompleted(campaignId: Types.ObjectId): Promise<void> {
+    await this.campaignModel
+      .updateOne(
+        {
+          _id: campaignId,
+          status: CampaignStatus.RUNNING,
+          'stats.queuedRecipients': { $lte: 0 },
+        },
+        {
+          $set: {
+            status: CampaignStatus.COMPLETED,
           },
         },
       )

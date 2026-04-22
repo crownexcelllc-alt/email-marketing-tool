@@ -44,6 +44,7 @@ function formatDate(value?: string | null): string {
   }).format(date);
 }
 
+// ─── Status badge ──────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status?: string }) {
   const map: Record<string, { icon: React.ReactNode; label: string; cls: string }> = {
     running: {
@@ -87,15 +88,8 @@ function StatusBadge({ status }: { status?: string }) {
   );
 }
 
-function StatPill({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-}) {
+// ─── Stat pill ─────────────────────────────────────────────────────────────────
+function StatPill({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
   return (
     <div className="flex flex-col items-center gap-0.5 rounded-lg border border-zinc-100 bg-zinc-50 px-3 py-2 min-w-[60px]">
       <div className="text-zinc-400">{icon}</div>
@@ -105,6 +99,7 @@ function StatPill({
   );
 }
 
+// ─── Campaign card ─────────────────────────────────────────────────────────────
 interface CampaignCardProps {
   campaign: Campaign;
   templateMap: Map<string, MarketingTemplate>;
@@ -115,6 +110,7 @@ function CampaignCard({ campaign, templateMap, onEdit }: CampaignCardProps) {
   const template = campaign.templateId ? templateMap.get(campaign.templateId) : undefined;
   const stats = campaign.stats ?? {};
 
+  // Audience summary
   function renderAudience() {
     if (campaign.segmentId) {
       return (
@@ -129,8 +125,8 @@ function CampaignCard({ campaign, templateMap, onEdit }: CampaignCardProps) {
         <div className="flex items-center gap-1.5 text-xs text-zinc-500">
           <Users className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
           <span>
-            <strong className="text-zinc-700">{campaign.contactIds.length}</strong> direct contact
-            {campaign.contactIds.length !== 1 ? 's' : ''}
+            <strong className="text-zinc-700">{campaign.contactIds.length}</strong> direct
+            contact{campaign.contactIds.length !== 1 ? 's' : ''}
           </span>
         </div>
       );
@@ -147,6 +143,7 @@ function CampaignCard({ campaign, templateMap, onEdit }: CampaignCardProps) {
     <Card className="overflow-hidden border-zinc-200 bg-white shadow-sm transition-shadow hover:shadow-md">
       <CardHeader className="border-b border-zinc-100 bg-zinc-50 px-5 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* Left: name + badges */}
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <h3 className="truncate text-sm font-semibold text-zinc-900">{campaign.name}</h3>
             <Badge variant={campaign.channel === 'email' ? 'neutral' : 'warning'}>
@@ -162,6 +159,8 @@ function CampaignCard({ campaign, templateMap, onEdit }: CampaignCardProps) {
             </Badge>
             <StatusBadge status={campaign.status} />
           </div>
+
+          {/* Right: re-run button */}
           <Button
             size="sm"
             className="gap-1.5 bg-zinc-900 text-white hover:bg-zinc-800"
@@ -175,10 +174,12 @@ function CampaignCard({ campaign, templateMap, onEdit }: CampaignCardProps) {
 
       <CardContent className="px-5 py-4">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          {/* Details */}
           <div className="flex-1 space-y-3">
+            {/* Audience */}
             {renderAudience()}
 
-            {/* Template — always fetched at latest version */}
+            {/* Template — always latest version */}
             {template ? (
               <div className="flex items-start gap-1.5 text-xs text-zinc-500">
                 <Tag className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-400" />
@@ -188,8 +189,8 @@ function CampaignCard({ campaign, templateMap, onEdit }: CampaignCardProps) {
                   {template.subject && (
                     <p className="mt-0.5 line-clamp-1 text-zinc-400">{template.subject}</p>
                   )}
-                  <p className="mt-0.5 italic text-zinc-400 text-[10px]">
-                    Always reflects the latest edited version
+                  <p className="mt-0.5 italic text-zinc-400">
+                    (Always reflects the latest template version)
                   </p>
                 </div>
               </div>
@@ -200,6 +201,7 @@ function CampaignCard({ campaign, templateMap, onEdit }: CampaignCardProps) {
               </div>
             ) : null}
 
+            {/* Senders */}
             {campaign.senderAccountIds.length > 0 && (
               <div className="flex items-center gap-1.5 text-xs text-zinc-500">
                 <Send className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
@@ -210,6 +212,7 @@ function CampaignCard({ campaign, templateMap, onEdit }: CampaignCardProps) {
               </div>
             )}
 
+            {/* Schedule info */}
             {campaign.startAt && (
               <div className="flex items-center gap-1.5 text-xs text-zinc-500">
                 <Clock className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
@@ -218,14 +221,15 @@ function CampaignCard({ campaign, templateMap, onEdit }: CampaignCardProps) {
               </div>
             )}
 
+            {/* Sending window */}
             {(campaign.sendingWindowStart || campaign.sendingWindowEnd) && (
               <div className="flex items-center gap-1.5 text-xs text-zinc-500">
                 <Clock className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
-                Window: {campaign.sendingWindowStart ?? '-'} →{' '}
-                {campaign.sendingWindowEnd ?? '-'}
+                Window: {campaign.sendingWindowStart ?? '-'} → {campaign.sendingWindowEnd ?? '-'}
               </div>
             )}
 
+            {/* Timestamps */}
             <div className="flex flex-wrap gap-3 text-[11px] text-zinc-400">
               <span>Created: {formatDate(campaign.createdAt)}</span>
               {campaign.updatedAt && campaign.updatedAt !== campaign.createdAt && (
@@ -263,6 +267,7 @@ function CampaignCard({ campaign, templateMap, onEdit }: CampaignCardProps) {
   );
 }
 
+// ─── Skeleton loader ────────────────────────────────────────────────────────────
 function LoadingSkeleton() {
   return (
     <div className="space-y-3">
@@ -295,6 +300,7 @@ function LoadingSkeleton() {
   );
 }
 
+// ─── Page ───────────────────────────────────────────────────────────────────────
 export default function SegmentsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [templateMap, setTemplateMap] = useState<Map<string, MarketingTemplate>>(new Map());
@@ -337,12 +343,13 @@ export default function SegmentsPage() {
 
   return (
     <section className="space-y-6">
+      {/* Page header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-bold text-zinc-900">Campaign Segments</h2>
           <p className="mt-0.5 text-sm text-zinc-500">
-            Full history of every campaign — contacts, template, audience, and delivery stats.
-            Click <strong>Edit &amp; Re-run</strong> to modify and relaunch any campaign.
+            Full history of every campaign — contacts, template, audience, and delivery stats. Edit
+            and re-run any campaign with updated settings.
           </p>
         </div>
         <Button
@@ -357,6 +364,7 @@ export default function SegmentsPage() {
         </Button>
       </div>
 
+      {/* Summary bar */}
       {!loading && (
         <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-600">
           <BarChart2 className="h-4 w-4 shrink-0 text-zinc-400" />
@@ -366,11 +374,12 @@ export default function SegmentsPage() {
           </span>
           <span className="text-zinc-300">•</span>
           <span className="text-xs text-zinc-400">
-            Templates always reflect their latest edited version automatically
+            Templates always reflect their latest edited version
           </span>
         </div>
       )}
 
+      {/* Campaign list */}
       {loading ? (
         <LoadingSkeleton />
       ) : campaigns.length === 0 ? (
@@ -397,6 +406,7 @@ export default function SegmentsPage() {
         </div>
       )}
 
+      {/* Pagination */}
       {!loading && totalPages > 1 && (
         <div className="flex items-center justify-between border-t border-zinc-200 pt-4">
           <p className="text-xs text-zinc-500">
@@ -423,6 +433,7 @@ export default function SegmentsPage() {
         </div>
       )}
 
+      {/* Edit & Re-run Dialog */}
       <CampaignEditRerunDialog
         open={Boolean(editingCampaign)}
         campaign={editingCampaign}

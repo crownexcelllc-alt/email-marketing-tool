@@ -12,8 +12,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { createCampaign, getCampaignContacts, getCampaigns, startCampaign } from '@/lib/api/campaigns';
-import { bulkAddTagToContacts, updateContact } from '@/lib/api/contacts';
-import { getContacts } from '@/lib/api/contacts';
+import { bulkAddLabelToContacts, updateContact } from '@/lib/api/contacts';
+import { getContacts, getContactCategorySummary } from '@/lib/api/contacts';
+import type { ContactCategorySummaryItem } from '@/lib/types/contact';
 import { getSegments } from '@/lib/api/segments';
 import { getSenderAccounts } from '@/lib/api/sender-accounts';
 import { getTemplates } from '@/lib/api/templates';
@@ -42,7 +43,7 @@ const CAMPAIGN_STEPS: CampaignStep[] = [
 const STEP_FIELDS: string[][] = [
   ['name'],
   ['channel'],
-  ['targetMode', 'segmentId', 'contactIds'],
+  ['targetMode', 'segmentId', 'contactIds', 'categoryName'],
   ['senderAccountIds'],
   ['templateId'],
   ['scheduleMode', 'timezone', 'startAt'],
@@ -157,6 +158,7 @@ export function CampaignBuilder() {
   const [lastLaunchedCampaignId, setLastLaunchedCampaignId] = useState<string | null>(null);
 
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [categories, setCategories] = useState<ContactCategorySummaryItem[]>([]);
   const [segments, setSegments] = useState<Segment[]>([]);
   const [senderAccounts, setSenderAccounts] = useState<SenderAccount[]>([]);
   const [templates, setTemplates] = useState<MarketingTemplate[]>([]);
@@ -167,7 +169,7 @@ export function CampaignBuilder() {
     DEFAULT_AUDIENCE_PAGINATION,
   );
   const [selectedAudienceIds, setSelectedAudienceIds] = useState<string[]>([]);
-  const [audienceTagInput, setAudienceTagInput] = useState('');
+  const [audienceLabelInput, setAudienceLabelInput] = useState('');
   const [editingAudienceContact, setEditingAudienceContact] = useState<Contact | null>(null);
 
   const form = useForm<CampaignBuilderFormValues>({
@@ -176,8 +178,9 @@ export function CampaignBuilder() {
       name: '',
       description: '',
       channel: 'email',
-      targetMode: 'segment',
+      targetMode: 'contacts',
       segmentId: '',
+      categoryName: '',
       contactIds: [],
       senderAccountIds: [],
       templateId: '',
@@ -198,7 +201,7 @@ export function CampaignBuilder() {
   const watchedTargetMode = useWatch({
     control: form.control,
     name: 'targetMode',
-  }) ?? 'segment';
+  }) ?? 'contacts';
 
   const watchedSegmentId = useWatch({
     control: form.control,
@@ -233,14 +236,20 @@ export function CampaignBuilder() {
     name: 'scheduleMode',
   }) ?? 'now';
 
+  const watchedCategoryName = useWatch({
+    control: form.control,
+    name: 'categoryName',
+  }) ?? '';
+
   const loadOptions = useCallback(async (channel: 'email' | 'whatsapp') => {
     setIsLoadingOptions(true);
 
-    const [contactsResult, segmentsResult, senderResult, templateResult] = await Promise.allSettled([
+    const [contactsResult, segmentsResult, senderResult, templateResult, categoriesResult] = await Promise.allSettled([
       getContacts({ page: 1, limit: 100 }),
       getSegments({ page: 1, limit: 100 }),
       getSenderAccounts(channel),
       getTemplates({ page: 1, limit: 100, type: channel }),
+      getContactCategorySummary(),
     ]);
 
     if (contactsResult.status === 'fulfilled') {
@@ -265,6 +274,12 @@ export function CampaignBuilder() {
       setTemplates(templateResult.value.items);
     } else {
       setTemplates([]);
+    }
+
+    if (categoriesResult.status === 'fulfilled') {
+      setCategories(categoriesResult.value.categories);
+    } else {
+      setCategories([]);
     }
 
     if (
@@ -365,7 +380,27 @@ export function CampaignBuilder() {
     setIsLaunching(true);
 
     try {
-      const campaign = await createCampaign(values as CampaignBuilderValues);
+      let resolvedContactIds = values.contactIds;
+
+      // If targeting by category, resolve all contact IDs for that category first
+      if (values.targetMode === 'category' && values.categoryName) {
+        const result = await getContacts({ category: values.categoryName, page: 1, limit: 10000 });
+        resolvedContactIds = result.items.map((c) => c.id);
+        if (resolvedContactIds.length === 0) {
+          toast.error(`No contacts found in category "${values.categoryName}".`);
+          setIsLaunching(false);
+          return;
+        }
+      }
+
+      const payload = {
+        ...values,
+        contactIds: resolvedContactIds,
+        // Normalize: backend only understands 'segment' | 'contacts'
+        targetMode: values.targetMode === 'category' ? 'contacts' : values.targetMode,
+      } as CampaignBuilderValues;
+
+      const campaign = await createCampaign(payload);
       await startCampaign(campaign.id);
 
       setLastLaunchedCampaignId(campaign.id);
@@ -379,7 +414,10 @@ export function CampaignBuilder() {
   });
 
   const handleReuseCampaign = (campaign: Campaign) => {
-    form.reset(buildRerunDefaults(campaign));
+    form.reset({
+      ...buildRerunDefaults(campaign),
+      categoryName: '',
+    });
     setCurrentStep(4);
     setLastLaunchedCampaignId(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -408,18 +446,18 @@ export function CampaignBuilder() {
     setSelectedAudienceIds((prev) => prev.filter((id) => id !== contactId));
   };
 
-  const handleBulkAddAudienceTag = async () => {
-    const newTag = audienceTagInput.trim();
-    if (!newTag || selectedAudienceIds.length === 0) {
+  const handleBulkAddAudienceLabel = async () => {
+    const newLabel = audienceLabelInput.trim();
+    if (!newLabel || selectedAudienceIds.length === 0) {
       return;
     }
 
     setIsAudienceBulkLoading(true);
 
     try {
-      const result = await bulkAddTagToContacts(selectedAudienceIds, newTag);
-      toast.success(`Tag "${newTag}" added to ${result.modified} of ${result.requested} users.`);
-      setAudienceTagInput('');
+      const result = await bulkAddLabelToContacts(selectedAudienceIds, newLabel);
+      toast.success(`Label "${newLabel}" added to ${result.modified} of ${result.requested} users.`);
+      setAudienceLabelInput('');
       if (selectedCampaign) {
         await loadCampaignAudience(selectedCampaign, audiencePagination.page);
       }
@@ -526,49 +564,31 @@ export function CampaignBuilder() {
     if (currentStep === 2) {
       return (
         <div className="space-y-4">
+          {/* Mode switcher: 2 options */}
           <div className="inline-flex rounded-md border border-zinc-800 bg-zinc-900 p-1">
-            {(['segment', 'contacts'] as const).map((mode) => (
+            {(['contacts', 'category'] as const).map((mode) => (
               <Button
                 key={mode}
                 type="button"
                 size="sm"
                 variant={watchedTargetMode === mode ? 'default' : 'ghost'}
                 className={watchedTargetMode === mode ? '' : 'text-zinc-400 hover:text-zinc-100'}
-                onClick={() => form.setValue('targetMode', mode)}
+                onClick={() => {
+                  form.setValue('targetMode', mode);
+                  // Clear the irrelevant fields when switching mode
+                  if (mode !== 'contacts') form.setValue('contactIds', []);
+                  if (mode !== 'category') form.setValue('categoryName', '');
+                }}
               >
-                {mode === 'segment' ? 'Use Segment' : 'Select Contacts'}
+                {mode === 'contacts' ? 'Select Contacts' : 'By Category'}
               </Button>
             ))}
           </div>
 
           {isLoadingOptions ? (
             <p className="text-sm text-zinc-500">Loading audience options...</p>
-          ) : watchedTargetMode === 'segment' ? (
-            <div className="space-y-2">
-              {segments.length === 0 ? (
-                <p className="text-sm text-zinc-500">No segments found.</p>
-              ) : (
-                segments.map((segment) => (
-                  <label
-                    key={segment.id}
-                    className="flex cursor-pointer items-center justify-between rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-zinc-100">{segment.name}</p>
-                      <p className="text-xs text-zinc-500">{segment.estimatedCount} contacts</p>
-                    </div>
-                    <input
-                      type="radio"
-                      className="h-4 w-4"
-                      checked={watchedSegmentId === segment.id}
-                      onChange={() => form.setValue('segmentId', segment.id, { shouldDirty: true })}
-                    />
-                  </label>
-                ))
-              )}
-              <FieldError message={form.formState.errors.segmentId?.message} />
-            </div>
-          ) : (
+          ) : watchedTargetMode === 'contacts' ? (
+            /* Individual contacts mode */
             <div className="max-h-72 space-y-2 overflow-y-auto rounded-md border border-zinc-800 p-2">
               {contacts.length === 0 ? (
                 <p className="px-2 py-3 text-sm text-zinc-500">No contacts found.</p>
@@ -580,7 +600,14 @@ export function CampaignBuilder() {
                   >
                     <div>
                       <p className="text-sm font-medium text-zinc-100">{getContactLabel(contact)}</p>
-                      <p className="text-xs text-zinc-500">{contact.email ?? contact.phone ?? '-'}</p>
+                      <p className="text-xs text-zinc-500">
+                        {contact.email ?? contact.phone ?? '-'}
+                        {contact.category ? (
+                          <span className="ml-2 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400">
+                            {contact.category}
+                          </span>
+                        ) : null}
+                      </p>
                     </div>
                     <input
                       type="checkbox"
@@ -597,7 +624,42 @@ export function CampaignBuilder() {
                   </label>
                 ))
               )}
+              {watchedContactIds.length > 0 && (
+                <p className="pt-1 text-right text-xs text-zinc-400">
+                  {watchedContactIds.length} contact{watchedContactIds.length !== 1 ? 's' : ''} selected
+                </p>
+              )}
               <FieldError message={form.formState.errors.contactIds?.message as string | undefined} />
+            </div>
+
+          ) : (
+            /* By Category mode */
+            <div className="space-y-2">
+              <p className="text-xs text-zinc-400">
+                All contacts in the selected category will be included when the campaign launches.
+              </p>
+              {categories.length === 0 ? (
+                <p className="text-sm text-zinc-500">No categories found. Add a category to your contacts first.</p>
+              ) : (
+                categories.map((item) => (
+                  <label
+                    key={item.category}
+                    className="flex cursor-pointer items-center justify-between rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-zinc-100">{item.category}</p>
+                      <p className="text-xs text-zinc-500">{item.count} contact{item.count !== 1 ? 's' : ''}</p>
+                    </div>
+                    <input
+                      type="radio"
+                      className="h-4 w-4"
+                      checked={watchedCategoryName === item.category}
+                      onChange={() => form.setValue('categoryName', item.category, { shouldDirty: true })}
+                    />
+                  </label>
+                ))
+              )}
+              <FieldError message={form.formState.errors.categoryName?.message} />
             </div>
           )}
         </div>
@@ -786,6 +848,8 @@ export function CampaignBuilder() {
               <span className="text-zinc-500">Audience:</span>{' '}
               {values.targetMode === 'segment'
                 ? selectedSegment?.name ?? 'No segment selected'
+                : values.targetMode === 'category'
+                ? `Category: ${values.categoryName || 'None selected'}`
                 : `${selectedContacts.length} contacts selected`}
             </p>
             <p>
@@ -963,22 +1027,22 @@ export function CampaignBuilder() {
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <Input
                   className="h-9 border-zinc-800 bg-zinc-900 text-zinc-100"
-                  placeholder="Tag to add"
-                  value={audienceTagInput}
-                  onChange={(event) => setAudienceTagInput(event.target.value)}
+                  placeholder="Label to add"
+                  value={audienceLabelInput}
+                  onChange={(event) => setAudienceLabelInput(event.target.value)}
                 />
                 <Button
                   type="button"
                   variant="outline"
                   className="border-zinc-700 text-zinc-200 hover:bg-zinc-800"
-                  onClick={() => void handleBulkAddAudienceTag()}
+                  onClick={() => void handleBulkAddAudienceLabel()}
                   disabled={
                     selectedAudienceIds.length === 0 ||
-                    !audienceTagInput.trim() ||
+                    !audienceLabelInput.trim() ||
                     isAudienceBulkLoading
                   }
                 >
-                  {isAudienceBulkLoading ? 'Applying...' : 'Add Tag to Selected'}
+                  {isAudienceBulkLoading ? 'Applying...' : 'Add Label to Selected'}
                 </Button>
               </div>
             </div>
@@ -1018,11 +1082,8 @@ export function CampaignBuilder() {
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
                           <span>{contact.email ?? contact.phone ?? 'No contact method'}</span>
                           {contact.company ? <span>{contact.company}</span> : null}
-                          {contact.tags.length > 0 ? (
-                            <span>Tags: {contact.tags.join(', ')}</span>
-                          ) : (
-                            <span>No tags</span>
-                          )}
+                          {contact.category ? <span>Category: {contact.category}</span> : <span>No category</span>}
+                          {contact.labels.length > 0 ? <span>Labels: {contact.labels.join(', ')}</span> : <span>No labels</span>}
                         </div>
                       </div>
                     </div>

@@ -1,5 +1,5 @@
 export type CampaignChannel = 'email' | 'whatsapp';
-export type CampaignTargetMode = 'segment' | 'contacts';
+export type CampaignTargetMode = 'segment' | 'contacts' | 'category';
 export type CampaignScheduleMode = 'now' | 'scheduled';
 
 export interface CampaignBuilderValues {
@@ -8,6 +8,7 @@ export interface CampaignBuilderValues {
   channel: CampaignChannel;
   targetMode: CampaignTargetMode;
   segmentId?: string;
+  categoryName?: string;
   contactIds: string[];
   senderAccountIds: string[];
   templateId?: string;

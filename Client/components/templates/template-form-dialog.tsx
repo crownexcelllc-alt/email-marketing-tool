@@ -2,7 +2,8 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
+import { EmailTemplateBuilder } from '@/components/templates/email-template-builder';
 import { TemplatePreviewPanel } from '@/components/templates/template-preview-panel';
 import { Button } from '@/components/ui/button';
 import {
@@ -88,7 +89,7 @@ export function TemplateFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] w-[96vw] max-w-[1200px] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Edit Template' : 'Create Template'}</DialogTitle>
           <DialogDescription>
@@ -150,13 +151,26 @@ export function TemplateFormDialog({
 
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="body">Body</Label>
-              <textarea
-                id="body"
-                rows={8}
-                className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100"
-                placeholder="Hi {{name}}, we have a new update for {{company}}."
-                {...form.register('body')}
-              />
+              {watchedType === 'email' ? (
+                <Controller
+                  control={form.control}
+                  name="body"
+                  render={({ field }) => (
+                    <EmailTemplateBuilder
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                    />
+                  )}
+                />
+              ) : (
+                <textarea
+                  id="body"
+                  rows={8}
+                  className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100"
+                  placeholder="Hi {{name}}, we have a new update for {{company}}."
+                  {...form.register('body')}
+                />
+              )}
               <FieldError message={form.formState.errors.body?.message} />
             </div>
           </div>
@@ -186,4 +200,3 @@ export function TemplateFormDialog({
     </Dialog>
   );
 }
-

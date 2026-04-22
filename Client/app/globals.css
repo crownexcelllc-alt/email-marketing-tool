@@ -1,6 +1,8 @@
 @import 'tailwindcss';
+@import 'grapesjs/dist/css/grapes.min.css';
 
 :root {
+  color-scheme: light;
   --background: oklch(0.985 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -51,30 +53,6 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --destructive-foreground: oklch(0.985 0 0);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-  }
-}
-
 * {
   border-color: var(--border);
 }
@@ -83,4 +61,94 @@ body {
   background: var(--background);
   color: var(--foreground);
   min-height: 100%;
+}
+
+/* Global light-mode normalization for legacy dark utility classes. */
+:where(
+  .bg-zinc-950,
+  .bg-zinc-900,
+  .bg-zinc-800,
+  .bg-zinc-500,
+  .bg-zinc-950\/95,
+  .bg-zinc-950\/80,
+  .bg-zinc-950\/60,
+  .bg-zinc-900\/90,
+  .bg-zinc-900\/70,
+  .bg-zinc-900\/60,
+  .bg-zinc-900\/50,
+  .bg-zinc-900\/40,
+  .bg-zinc-800\/80
+) {
+  background-color: #ffffff !important;
+}
+
+:where(.bg-zinc-100) {
+  background-color: #f3f4f6 !important;
+}
+
+:where(.text-zinc-100, .text-zinc-200, .text-zinc-300, .text-zinc-400, .text-zinc-500, .text-zinc-700, .text-zinc-900) {
+  color: #111827 !important;
+}
+
+:where(.border-zinc-800, .border-zinc-700, .border-zinc-300, .border-zinc-800\/70) {
+  border-color: #d1d5db !important;
+}
+
+:where(.hover\:bg-zinc-800:hover, .hover\:bg-zinc-900:hover, .hover\:bg-zinc-900\/40:hover) {
+  background-color: #f3f4f6 !important;
+}
+
+:where(.focus\:bg-zinc-800:focus) {
+  background-color: #f3f4f6 !important;
+}
+
+:where(.focus\:text-zinc-100:focus) {
+  color: #111827 !important;
+}
+
+:where(.ring-offset-zinc-950) {
+  --tw-ring-offset-color: #ffffff !important;
+}
+
+:where(.file\:bg-zinc-800)::file-selector-button {
+  background-color: #e5e7eb !important;
+  color: #111827 !important;
+}
+
+:where(.hover\:file\:bg-zinc-700:hover)::file-selector-button {
+  background-color: #d1d5db !important;
+}
+
+:where(.bg-black\/65, .bg-black\/60) {
+  background-color: rgb(17 24 39 / 0.35) !important;
+}
+
+/* Hard-stop for any lingering dark dashboard backgrounds/gradients. */
+:where(.dashboard-shell-root, .dashboard-shell-main, .dashboard-shell-content) {
+  background-color: #f3f4f6 !important;
+  background-image: none !important;
+}
+
+:where(.dashboard-shell-content) {
+  background-color: #ffffff !important;
+}
+
+:where(.bg-gradient-to-b, .bg-gradient-to-r, .bg-gradient-to-br, .bg-gradient-to-tr) {
+  background-image: none !important;
+}
+
+:where(
+  .from-zinc-950,
+  .from-zinc-900,
+  .from-zinc-800,
+  .to-zinc-900,
+  .to-zinc-900\/60,
+  .to-zinc-800,
+  .to-zinc-700,
+  .via-zinc-900,
+  .via-zinc-800
+) {
+  --tw-gradient-from: #f3f4f6 !important;
+  --tw-gradient-to: #f3f4f6 !important;
+  --tw-gradient-stops: #f3f4f6, #f3f4f6 !important;
 }
