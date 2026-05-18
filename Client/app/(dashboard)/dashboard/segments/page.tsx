@@ -12,6 +12,7 @@ import {
   Pencil,
   Play,
   RefreshCw,
+  RotateCw,
   Send,
   Tag,
   Users,
@@ -186,7 +187,7 @@ function CampaignCard({
   const remaining = Math.max(0, total - processed);
 
   const isCompleted = campaign.status === 'completed' || processed >= total;
-  const percent = isCompleted ? 100 : (total > 0 ? Math.min(99, Math.round((processed / total) * 100)) : 0);
+  const percent = total > 0 ? Math.round((processed / total) * 100) : 0;
 
   // Progress Bar Helper
   const renderProgress = () => {
@@ -194,27 +195,80 @@ function CampaignCard({
       return null;
     }
 
+    const showStop = campaign.status === 'running' || campaign.status === 'scheduled';
+    const showResume = campaign.status === 'paused';
+    const showStartAgain = campaign.status === 'cancelled';
+
     return (
-      <div className="mt-4 rounded-lg border border-zinc-150 bg-zinc-50/50 p-4">
-        <div className="flex items-center justify-between mb-2">
-          <span className={`text-xs font-semibold ${isCompleted ? 'text-emerald-700' : 'text-zinc-700'}`}>
-            {isCompleted ? 'Campaign Completed Successfully' : 'Campaign Progress'}
-          </span>
-          <span className={`text-xs font-bold px-2 py-0.5 rounded ${isCompleted ? 'text-emerald-700 bg-emerald-100' : 'text-emerald-700 bg-emerald-50'}`}>
-            {percent}% Complete
-          </span>
+      <div className="mt-4 rounded-lg border border-zinc-150 bg-zinc-50/50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-2">
+            <span className={`text-xs font-semibold ${isCompleted ? 'text-emerald-700' : 'text-zinc-700'}`}>
+              {isCompleted ? 'Campaign Completed Successfully' : 'Campaign Progress'}
+            </span>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded ${isCompleted ? 'text-emerald-700 bg-emerald-100' : 'text-emerald-700 bg-emerald-50'}`}>
+              {percent}% Complete
+            </span>
+          </div>
+
+          <div className="h-2 w-full rounded-full bg-zinc-100 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-emerald-600 transition-all duration-500 ease-out"
+              style={{ width: `${percent}%` }}
+            />
+          </div>
         </div>
 
-        <div className="h-2 w-full rounded-full bg-zinc-100 overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ease-out ${
-              isCompleted 
-                ? 'bg-emerald-600' 
-                : 'bg-gradient-to-r from-emerald-500 to-teal-500'
-            }`}
-            style={{ width: `${percent}%` }}
-          />
-        </div>
+        {(showStop || showResume || showStartAgain) && (
+          <div className="shrink-0 flex items-center justify-end sm:border-l sm:border-zinc-200 sm:pl-4">
+            {showStop && (
+              <Button
+                size="sm"
+                variant="destructive"
+                className="gap-1.5 bg-red-600 hover:bg-red-700 text-white font-medium shadow-sm transition-all"
+                onClick={handlePause}
+                disabled={actionLoading}
+              >
+                {actionLoading ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <XCircle className="h-3.5 w-3.5" />
+                )}
+                Stop
+              </Button>
+            )}
+            {showResume && (
+              <Button
+                size="sm"
+                className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm transition-all"
+                onClick={handleResume}
+                disabled={actionLoading}
+              >
+                {actionLoading ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Play className="h-3.5 w-3.5" />
+                )}
+                Resume
+              </Button>
+            )}
+            {showStartAgain && (
+              <Button
+                size="sm"
+                className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm transition-all"
+                onClick={handleResume}
+                disabled={actionLoading}
+              >
+                {actionLoading ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RotateCw className="h-3.5 w-3.5" />
+                )}
+                Start Again
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     );
   };
@@ -269,53 +323,14 @@ function CampaignCard({
                 Edit
               </Button>
             ) : campaign.status === 'running' || campaign.status === 'scheduled' ? (
-              <Button
-                size="sm"
-                variant="destructive"
-                className="gap-1.5 bg-red-600 hover:bg-red-700 text-white font-medium shadow-sm transition-all"
-                onClick={handlePause}
-                disabled={actionLoading}
-              >
-                {actionLoading ? (
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <XCircle className="h-3.5 w-3.5" />
-                )}
-                Stop
-              </Button>
-            ) : campaign.status === 'paused' ? (
-              <>
-                <Button
-                  size="sm"
-                  className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm transition-all"
-                  onClick={handleResume}
-                  disabled={actionLoading}
-                >
-                  {actionLoading ? (
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Play className="h-3.5 w-3.5" />
-                  )}
-                  Resume
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5 border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50"
-                  onClick={() => onDuplicate(campaign)}
-                  disabled={isDuplicating || actionLoading}
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                  Duplicate
-                </Button>
-              </>
+              null
             ) : (
               <Button
                 size="sm"
                 variant="outline"
                 className="gap-1.5 border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50"
                 onClick={() => onDuplicate(campaign)}
-                disabled={isDuplicating}
+                disabled={isDuplicating || actionLoading}
               >
                 <Copy className="h-3.5 w-3.5" />
                 {isDuplicating ? 'Duplicating...' : 'Duplicate'}
@@ -472,22 +487,8 @@ export default function SegmentsPage() {
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
-  const handleDuplicate = async (campaign: Campaign) => {
-    setDuplicatingId(campaign.id);
-    try {
-      const duplicated = await duplicateCampaign(campaign.id);
-      toast.success(`Campaign duplicated successfully as "${duplicated.name}"!`);
-      await load(page);
-      setEditingCampaign(duplicated);
-    } catch (error: unknown) {
-      toast.error(getErrorMessage(error));
-    } finally {
-      setDuplicatingId(null);
-    }
-  };
-
-  const load = useCallback(async (pageNum: number) => {
-    setLoading(true);
+  const load = useCallback(async (pageNum: number, isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const [campaignsRes, templatesRes] = await Promise.allSettled([
         getCampaigns({ page: pageNum, limit: 10 }),
@@ -509,20 +510,36 @@ export default function SegmentsPage() {
         setTemplateMap(map);
       }
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   }, []);
 
+  const handleDuplicate = async (campaign: Campaign) => {
+    setDuplicatingId(campaign.id);
+    try {
+      const duplicated = await duplicateCampaign(campaign.id);
+      toast.success(`Campaign duplicated successfully as "${duplicated.name}"!`);
+      await load(page, true);
+      setEditingCampaign(duplicated);
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setDuplicatingId(null);
+    }
+  };
+
   useEffect(() => {
-    void load(page);
+    void load(page, false);
   }, [load, page]);
 
-  // Congestion-Free Intelligent Polling Hook: Schedule next poll 3s AFTER previous completes
+  const activeCampaignIds = campaigns
+    .filter((c) => c.status === 'running' || c.status === 'scheduled')
+    .map((c) => c.id)
+    .join(',');
+
+  // Congestion-Free Intelligent Polling Hook: Schedule next poll 1s AFTER previous completes
   useEffect(() => {
-    const hasActiveCampaign = campaigns.some(
-      (c) => c.status === 'running' || c.status === 'scheduled'
-    );
-    if (!hasActiveCampaign) return;
+    if (!activeCampaignIds) return;
 
     let timeoutId: NodeJS.Timeout | null = null;
     let isMounted = true;
@@ -539,12 +556,12 @@ export default function SegmentsPage() {
         console.error('Error polling running campaigns:', err);
       } finally {
         if (isMounted) {
-          timeoutId = setTimeout(poll, 3000);
+          timeoutId = setTimeout(poll, 1000);
         }
       }
     };
 
-    timeoutId = setTimeout(poll, 3000);
+    timeoutId = setTimeout(poll, 200);
 
     return () => {
       isMounted = false;
@@ -552,7 +569,7 @@ export default function SegmentsPage() {
         clearTimeout(timeoutId);
       }
     };
-  }, [campaigns, page]);
+  }, [activeCampaignIds, page]);
 
   return (
     <section className="space-y-6">
@@ -561,15 +578,15 @@ export default function SegmentsPage() {
         <div>
           <h2 className="text-xl font-bold text-zinc-900">Campaign Segments</h2>
           <p className="mt-0.5 text-sm text-zinc-500">
-            Full history of every campaign — contacts, template, audience, and delivery stats.
-            Click <strong>Edit</strong> to modify an existing campaign segment.
+            Full history of every campaign — contacts, template, audience, and delivery stats. Edit
+            any campaign segment with updated settings.
           </p>
         </div>
         <Button
           variant="outline"
           size="sm"
           className="gap-2"
-          onClick={() => void load(page)}
+          onClick={() => void load(page, false)}
           disabled={loading}
         >
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -587,7 +604,7 @@ export default function SegmentsPage() {
           </span>
           <span className="text-zinc-300">•</span>
           <span className="text-xs text-zinc-400">
-            Templates always reflect their latest edited version automatically
+            Templates always reflect their latest edited version
           </span>
         </div>
       )}
@@ -616,7 +633,7 @@ export default function SegmentsPage() {
               onEdit={setEditingCampaign}
               onDuplicate={handleDuplicate}
               isDuplicating={duplicatingId === campaign.id}
-              onSuccess={() => void load(page)}
+              onSuccess={() => void load(page, true)}
             />
           ))}
         </div>
@@ -656,7 +673,7 @@ export default function SegmentsPage() {
         onOpenChange={(open) => {
           if (!open) setEditingCampaign(null);
         }}
-        onSuccess={() => void load(page)}
+        onSuccess={() => void load(page, true)}
       />
     </section>
   );

@@ -26,6 +26,7 @@ import { ListCampaignAudienceDto } from './dto/list-campaign-audience.dto';
 import { ListCampaignsDto } from './dto/list-campaigns.dto';
 import { UpdateCampaignDto } from './dto/update-campaign.dto';
 import { Campaign, CampaignDocument } from './schemas/campaign.schema';
+import { CampaignRecipient } from './schemas/campaign-recipient.schema';
 import { CampaignListResponse, CampaignResponse } from './types/campaign.response';
 import { ContactListResponse, ContactResponse } from '../contacts/types/contact.response';
 
@@ -34,6 +35,8 @@ export class CampaignsService {
   constructor(
     @InjectModel(Campaign.name)
     private readonly campaignModel: Model<Campaign>,
+    @InjectModel(CampaignRecipient.name)
+    private readonly campaignRecipientModel: Model<CampaignRecipient>,
     @InjectModel(SenderAccount.name)
     private readonly senderAccountModel: Model<SenderAccount>,
     @InjectModel(Template.name)
@@ -483,12 +486,41 @@ export class CampaignsService {
 
   async resume(id: string, authUser: AuthUser, trackingBaseUrl: string): Promise<CampaignResponse> {
     const campaign = await this.findOwnedCampaign(id, authUser);
-    if (campaign.status !== CampaignStatus.PAUSED) {
+    if (
+      campaign.status !== CampaignStatus.PAUSED &&
+      campaign.status !== CampaignStatus.CANCELLED
+    ) {
       throw new AppException(
         HttpStatus.BAD_REQUEST,
         'CAMPAIGN_RESUME_NOT_ALLOWED',
-        'Only paused campaigns can be resumed',
+        'Only paused or cancelled campaigns can be resumed or restarted',
       );
+    }
+
+    if (campaign.status === CampaignStatus.CANCELLED) {
+      // Clear past recipient send lists so scheduler can rebuild audience assignments
+      await this.campaignRecipientModel.deleteMany({ campaignId: campaign._id }).exec();
+
+      // Reset statistics for a fresh restart
+      campaign.stats = {
+        totalRecipients: 0,
+        queuedRecipients: 0,
+        skippedRecipients: 0,
+        sentRecipients: 0,
+        failedRecipients: 0,
+        openCount: 0,
+        uniqueOpenCount: 0,
+        clickCount: 0,
+        uniqueClickCount: 0,
+        whatsappSentCount: 0,
+        whatsappDeliveredCount: 0,
+        whatsappReadCount: 0,
+        whatsappFailedCount: 0,
+        lastStartedAt: new Date(),
+        lastOpenedAt: null,
+        lastClickedAt: null,
+        lastWhatsappStatusAt: null,
+      };
     }
 
     campaign.status = CampaignStatus.RUNNING;
