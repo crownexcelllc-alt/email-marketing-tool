@@ -290,9 +290,11 @@ export default function NewTemplatePage() {
     setIsFinalSaving(true);
     try {
       const values = form.getValues();
+      const starter = getLayoutPresetDefinition(layoutPreset ?? 'basic');
       const payload: TemplateFormValues = {
         ...values,
         name: finalizedName,
+        subject: values.subject === starter.starterSubject ? finalizedName : values.subject,
       };
       await createTemplate(payload);
       clearNewTemplateDraft();
@@ -324,6 +326,7 @@ export default function NewTemplatePage() {
       const payload: TemplateFormValues = {
         ...values,
         name: finalName,
+        subject: values.subject === 'Hello {{name}}, your offer is ready' ? finalName : values.subject,
       };
       await createTemplate(payload);
       toast.success('Template created successfully.');

@@ -256,10 +256,10 @@ function CampaignCard({
               <Button
                 size="sm"
                 className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm transition-all"
-                onClick={handleResume}
-                disabled={actionLoading}
+                onClick={() => onDuplicate(campaign)}
+                disabled={isDuplicating || actionLoading}
               >
-                {actionLoading ? (
+                {isDuplicating ? (
                   <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <RotateCw className="h-3.5 w-3.5" />

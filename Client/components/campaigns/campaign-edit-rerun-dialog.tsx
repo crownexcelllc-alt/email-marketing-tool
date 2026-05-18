@@ -274,340 +274,350 @@ export function CampaignEditRerunDialog({ open, campaign, onOpenChange, onSucces
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Edit Campaign Segment</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="max-h-[95vh] w-[95vw] sm:w-[90vw] md:max-w-4xl lg:max-w-6xl overflow-y-auto p-6 sm:p-8">
+        <DialogHeader className="mb-4">
+          <DialogTitle className="text-xl font-bold text-zinc-900">Edit Campaign Segment</DialogTitle>
+          <DialogDescription className="text-zinc-500">
             Modify the audience, template, and settings below. The existing campaign segment will
             be updated.
           </DialogDescription>
         </DialogHeader>
 
-        <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
-          {/* Campaign name */}
-          <div className="space-y-1.5">
-            <Label htmlFor="er-name">Campaign Name</Label>
-            <Input id="er-name" placeholder="My Campaign" {...form.register('name')} />
-            <FieldError message={form.formState.errors.name?.message} />
-          </div>
-
-          {/* Channel */}
-          <div className="space-y-1.5">
-            <Label>Channel</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                className={`rounded-lg border-2 p-3 text-left text-sm font-semibold transition-all ${
-                  channel === 'email'
-                    ? 'border-zinc-900 bg-zinc-100 text-black'
-                    : 'border-zinc-400 bg-white text-black hover:bg-zinc-200'
-                }`}
-                onClick={() => {
-                  form.setValue('channel', 'email');
-                  form.setValue('senderAccountIds', []);
-                  form.setValue('templateId', '');
-                }}
-              >
-                Email
-              </button>
-              <button
-                type="button"
-                className={`rounded-lg border-2 p-3 text-left text-sm font-semibold transition-all ${
-                  channel === 'whatsapp'
-                    ? 'border-zinc-900 bg-zinc-100 text-black'
-                    : 'border-zinc-400 bg-white text-black hover:bg-zinc-200'
-                }`}
-                onClick={() => {
-                  form.setValue('channel', 'whatsapp');
-                  form.setValue('senderAccountIds', []);
-                  form.setValue('templateId', '');
-                }}
-              >
-                WhatsApp
-              </button>
-            </div>
-          </div>
-
-          {/* Audience Mode */}
-          <div className="space-y-2">
-            <Label>Audience</Label>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                className={`rounded-lg border-2 p-3 text-left text-sm font-semibold transition-all ${
-                  targetMode === 'segment'
-                    ? 'border-zinc-900 bg-zinc-100 text-black'
-                    : 'border-zinc-400 bg-white text-black hover:bg-zinc-200'
-                }`}
-                onClick={() => {
-                  form.setValue('targetMode', 'segment');
-                  form.setValue('categoryName', '');
-                  form.setValue('contactIds', []);
-                }}
-              >
-                Segment
-              </button>
-              <button
-                type="button"
-                className={`rounded-lg border-2 p-3 text-left text-sm font-semibold transition-all ${
-                  targetMode === 'contacts'
-                    ? 'border-zinc-900 bg-zinc-100 text-black'
-                    : 'border-zinc-400 bg-white text-black hover:bg-zinc-200'
-                }`}
-                onClick={() => {
-                  form.setValue('targetMode', 'contacts');
-                  form.setValue('segmentId', '');
-                  form.setValue('categoryName', '');
-                }}
-              >
-                Contacts
-              </button>
-              <button
-                type="button"
-                className={`rounded-lg border-2 p-3 text-left text-sm font-semibold transition-all ${
-                  targetMode === 'category'
-                    ? 'border-zinc-900 bg-zinc-100 text-black'
-                    : 'border-zinc-400 bg-white text-black hover:bg-zinc-200'
-                }`}
-                onClick={() => {
-                  form.setValue('targetMode', 'category');
-                  form.setValue('segmentId', '');
-                  form.setValue('contactIds', []);
-                }}
-              >
-                Category
-              </button>
-            </div>
-
-            {isLoading ? (
-              <p className="text-xs text-zinc-400">Loading options...</p>
-            ) : targetMode === 'segment' ? (
-              <div className="max-h-52 space-y-1.5 overflow-y-auto rounded-lg border border-zinc-200 p-2">
-                {segments.length === 0 ? (
-                  <p className="px-2 py-3 text-xs text-zinc-400">No segments found.</p>
-                ) : (
-                  segments.map((segment) => (
-                    <label
-                      key={segment.id}
-                      className="flex cursor-pointer items-center justify-between rounded-md border border-zinc-100 px-3 py-2 hover:bg-zinc-50"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-zinc-800">{segment.name}</p>
-                        <p className="text-xs text-zinc-400">
-                          {segment.estimatedCount} contact
-                          {segment.estimatedCount !== 1 ? 's' : ''}
-                        </p>
-                      </div>
-                      <input
-                        type="radio"
-                        className="h-4 w-4 accent-zinc-900"
-                        checked={watchedSegmentId === segment.id}
-                        onChange={() =>
-                          form.setValue('segmentId', segment.id, { shouldDirty: true })
-                        }
-                      />
-                    </label>
-                  ))
-                )}
+        <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Left Column: Settings, Channel & Senders */}
+            <div className="space-y-6">
+              {/* Campaign name */}
+              <div className="space-y-2">
+                <Label htmlFor="er-name" className="text-sm font-semibold text-zinc-700">Campaign Name</Label>
+                <Input id="er-name" placeholder="My Campaign" {...form.register('name')} className="border-zinc-200 focus:border-zinc-900 focus:ring-zinc-900" />
+                <FieldError message={form.formState.errors.name?.message} />
               </div>
-            ) : targetMode === 'contacts' ? (
-              <div className="max-h-52 space-y-1.5 overflow-y-auto rounded-lg border border-zinc-200 p-2">
-                {contacts.length === 0 ? (
-                  <p className="px-2 py-3 text-xs text-zinc-400">No contacts found.</p>
-                ) : (
-                  contacts.map((contact) => (
-                    <label
-                      key={contact.id}
-                      className="flex cursor-pointer items-center justify-between rounded-md border border-zinc-100 px-3 py-2 hover:bg-zinc-50"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-zinc-800">
-                          {getContactLabel(contact)}
-                        </p>
-                        <p className="text-xs text-zinc-400">
-                          {contact.email ?? contact.phone ?? '-'}
-                          {contact.category && (
-                            <span className="ml-2 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] text-zinc-500">
-                              {contact.category}
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 accent-zinc-900"
-                        checked={watchedContactIds.includes(contact.id)}
-                        onChange={(e) =>
-                          form.setValue(
-                            'contactIds',
-                            toggleId(watchedContactIds, contact.id, e.target.checked),
-                            { shouldDirty: true },
-                          )
-                        }
-                      />
-                    </label>
-                  ))
-                )}
-                {watchedContactIds.length > 0 && (
-                  <p className="pt-1 text-right text-xs text-zinc-500">
-                    {watchedContactIds.length} selected
-                  </p>
-                )}
+
+              {/* Channel */}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-zinc-700">Channel</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    className={`rounded-lg border-2 p-3.5 text-left text-sm font-semibold transition-all ${
+                      channel === 'email'
+                        ? 'border-zinc-950 bg-zinc-950 text-white shadow-sm'
+                        : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-55 hover:border-zinc-300'
+                    }`}
+                    onClick={() => {
+                      form.setValue('channel', 'email');
+                      form.setValue('senderAccountIds', []);
+                      form.setValue('templateId', '');
+                    }}
+                  >
+                    Email
+                  </button>
+                  <button
+                    type="button"
+                    className={`rounded-lg border-2 p-3.5 text-left text-sm font-semibold transition-all ${
+                      channel === 'whatsapp'
+                        ? 'border-zinc-950 bg-zinc-950 text-white shadow-sm'
+                        : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-55 hover:border-zinc-300'
+                    }`}
+                    onClick={() => {
+                      form.setValue('channel', 'whatsapp');
+                      form.setValue('senderAccountIds', []);
+                      form.setValue('templateId', '');
+                    }}
+                  >
+                    WhatsApp
+                  </button>
+                </div>
               </div>
-            ) : (
-              /* By Category */
-              <div className="space-y-1.5">
-                <p className="text-xs text-zinc-400">
-                  All contacts in the selected category will be saved as the audience.
-                </p>
-                <div className="max-h-48 space-y-1.5 overflow-y-auto rounded-lg border border-zinc-200 p-2">
-                  {categories.length === 0 ? (
-                    <p className="px-2 py-3 text-xs text-zinc-400">No categories found.</p>
-                  ) : (
-                    categories.map((item) => (
+
+              {/* Sender Accounts */}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-zinc-700">Sender Accounts</Label>
+                {isLoading ? (
+                  <p className="text-xs text-zinc-400">Loading...</p>
+                ) : senderAccounts.length === 0 ? (
+                  <p className="text-xs text-zinc-400">No sender accounts for this channel.</p>
+                ) : (
+                  <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border border-zinc-250 p-3 bg-zinc-50/50">
+                    {senderAccounts.map((sender) => (
                       <label
-                        key={item.category}
-                        className="flex cursor-pointer items-center justify-between rounded-md border border-zinc-100 px-3 py-2 hover:bg-zinc-50"
+                        key={sender.id}
+                        className="flex cursor-pointer items-center justify-between rounded-md border border-zinc-200 bg-white px-3 py-2.5 hover:bg-zinc-50 transition-colors shadow-xs"
                       >
                         <div>
-                          <p className="text-sm font-medium text-zinc-800">{item.category}</p>
-                          <p className="text-xs text-zinc-400">
-                            {item.count} contact{item.count !== 1 ? 's' : ''}
+                          <p className="text-sm font-semibold text-zinc-800">{sender.name}</p>
+                          <p className="text-xs text-zinc-500">
+                            {sender.type === 'email' ? sender.email : sender.phoneNumber}
                           </p>
                         </div>
                         <input
-                          type="radio"
-                          className="h-4 w-4 accent-zinc-900"
-                          checked={watchedCategoryName === item.category}
-                          onChange={() =>
-                            form.setValue('categoryName', item.category, { shouldDirty: true })
+                          type="checkbox"
+                          className="h-4.5 w-4.5 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 accent-zinc-900 cursor-pointer"
+                          checked={watchedSenderIds.includes(sender.id)}
+                          onChange={(e) =>
+                            form.setValue(
+                              'senderAccountIds',
+                              toggleId(watchedSenderIds, sender.id, e.target.checked),
+                              { shouldDirty: true },
+                            )
                           }
                         />
                       </label>
-                    ))
-                  )}
-                </div>
-                <FieldError message={form.formState.errors.categoryName?.message} />
+                    ))}
+                  </div>
+                )}
+                <FieldError
+                  message={form.formState.errors.senderAccountIds?.message as string | undefined}
+                />
               </div>
-            )}
 
-            {targetMode === 'segment' && (
-              <FieldError message={form.formState.errors.segmentId?.message} />
-            )}
-            {targetMode === 'contacts' && (
-              <FieldError
-                message={form.formState.errors.contactIds?.message as string | undefined}
-              />
-            )}
-          </div>
+              {/* Schedule */}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-zinc-700">Timezone</Label>
+                <Input
+                  placeholder="UTC"
+                  {...form.register('timezone')}
+                  className="border-zinc-200 focus:border-zinc-900 focus:ring-zinc-900"
+                />
+                <FieldError message={form.formState.errors.timezone?.message} />
+              </div>
+            </div>
 
-          {/* Sender Accounts */}
-          <div className="space-y-2">
-            <Label>Sender Accounts</Label>
-            {isLoading ? (
-              <p className="text-xs text-zinc-400">Loading...</p>
-            ) : senderAccounts.length === 0 ? (
-              <p className="text-xs text-zinc-400">No sender accounts for this channel.</p>
-            ) : (
-              <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-lg border border-zinc-200 p-2">
-                {senderAccounts.map((sender) => (
-                  <label
-                    key={sender.id}
-                    className="flex cursor-pointer items-center justify-between rounded-md border border-zinc-100 px-3 py-2 hover:bg-zinc-50"
+            {/* Right Column: Audience & Templates */}
+            <div className="space-y-6">
+              {/* Audience Mode */}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-zinc-700">Audience</Label>
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  <button
+                    type="button"
+                    className={`rounded-lg border-2 p-2.5 text-center text-xs font-semibold transition-all ${
+                      targetMode === 'segment'
+                        ? 'border-zinc-950 bg-zinc-950 text-white shadow-sm'
+                        : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 hover:border-zinc-300'
+                    }`}
+                    onClick={() => {
+                      form.setValue('targetMode', 'segment');
+                      form.setValue('categoryName', '');
+                      form.setValue('contactIds', []);
+                    }}
                   >
-                    <div>
-                      <p className="text-sm font-medium text-zinc-800">{sender.name}</p>
-                      <p className="text-xs text-zinc-400">
-                        {sender.type === 'email' ? sender.email : sender.phoneNumber}
+                    Segment
+                  </button>
+                  <button
+                    type="button"
+                    className={`rounded-lg border-2 p-2.5 text-center text-xs font-semibold transition-all ${
+                      targetMode === 'contacts'
+                        ? 'border-zinc-950 bg-zinc-950 text-white shadow-sm'
+                        : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 hover:border-zinc-300'
+                    }`}
+                    onClick={() => {
+                      form.setValue('targetMode', 'contacts');
+                      form.setValue('segmentId', '');
+                      form.setValue('categoryName', '');
+                    }}
+                  >
+                    Contacts
+                  </button>
+                  <button
+                    type="button"
+                    className={`rounded-lg border-2 p-2.5 text-center text-xs font-semibold transition-all ${
+                      targetMode === 'category'
+                        ? 'border-zinc-950 bg-zinc-950 text-white shadow-sm'
+                        : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 hover:border-zinc-300'
+                    }`}
+                    onClick={() => {
+                      form.setValue('targetMode', 'category');
+                      form.setValue('segmentId', '');
+                      form.setValue('contactIds', []);
+                    }}
+                  >
+                    Category
+                  </button>
+                </div>
+
+                {isLoading ? (
+                  <p className="text-xs text-zinc-400">Loading options...</p>
+                ) : targetMode === 'segment' ? (
+                  <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border border-zinc-200 p-2.5 bg-zinc-50/50">
+                    {segments.length === 0 ? (
+                      <p className="px-2 py-3 text-xs text-zinc-400">No segments found.</p>
+                    ) : (
+                      segments.map((segment) => (
+                        <label
+                          key={segment.id}
+                          className="flex cursor-pointer items-center justify-between rounded-md border border-zinc-200 bg-white px-3 py-2.5 hover:bg-zinc-50 transition-colors shadow-xs"
+                        >
+                          <div>
+                            <p className="text-sm font-semibold text-zinc-800">{segment.name}</p>
+                            <p className="text-xs text-zinc-500 font-medium">
+                              {segment.estimatedCount} contact
+                              {segment.estimatedCount !== 1 ? 's' : ''}
+                            </p>
+                          </div>
+                          <input
+                            type="radio"
+                            className="h-4.5 w-4.5 accent-zinc-900 cursor-pointer"
+                            checked={watchedSegmentId === segment.id}
+                            onChange={() =>
+                              form.setValue('segmentId', segment.id, { shouldDirty: true })
+                            }
+                          />
+                        </label>
+                      ))
+                    )}
+                  </div>
+                ) : targetMode === 'contacts' ? (
+                  <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border border-zinc-200 p-2.5 bg-zinc-50/50">
+                    {contacts.length === 0 ? (
+                      <p className="px-2 py-3 text-xs text-zinc-400">No contacts found.</p>
+                    ) : (
+                      contacts.map((contact) => (
+                        <label
+                          key={contact.id}
+                          className="flex cursor-pointer items-center justify-between rounded-md border border-zinc-200 bg-white px-3 py-2.5 hover:bg-zinc-50 transition-colors shadow-xs"
+                        >
+                          <div>
+                            <p className="text-sm font-semibold text-zinc-800">
+                              {getContactLabel(contact)}
+                            </p>
+                            <p className="text-xs text-zinc-500 font-medium">
+                              {contact.email ?? contact.phone ?? '-'}
+                              {contact.category && (
+                                <span className="ml-2 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] text-zinc-500 font-semibold">
+                                  {contact.category}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                          <input
+                            type="checkbox"
+                            className="h-4.5 w-4.5 accent-zinc-900 cursor-pointer"
+                            checked={watchedContactIds.includes(contact.id)}
+                            onChange={(e) =>
+                              form.setValue(
+                                'contactIds',
+                                toggleId(watchedContactIds, contact.id, e.target.checked),
+                                { shouldDirty: true },
+                              )
+                            }
+                          />
+                        </label>
+                      ))
+                    )}
+                    {watchedContactIds.length > 0 && (
+                      <p className="pt-1 text-right text-xs font-semibold text-zinc-600">
+                        {watchedContactIds.length} selected
                       </p>
+                    )}
+                  </div>
+                ) : (
+                  /* By Category */
+                  <div className="space-y-2">
+                    <p className="text-xs text-zinc-500 font-medium">
+                      All contacts in the selected category will be saved as the audience.
+                    </p>
+                    <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border border-zinc-200 p-2.5 bg-zinc-50/50">
+                      {categories.length === 0 ? (
+                        <p className="px-2 py-3 text-xs text-zinc-400">No categories found.</p>
+                      ) : (
+                        categories.map((item) => (
+                          <label
+                            key={item.category}
+                            className="flex cursor-pointer items-center justify-between rounded-md border border-zinc-200 bg-white px-3 py-2.5 hover:bg-zinc-50 transition-colors shadow-xs"
+                          >
+                            <div>
+                              <p className="text-sm font-semibold text-zinc-800">{item.category}</p>
+                              <p className="text-xs text-zinc-500 font-medium">
+                                {item.count} contact{item.count !== 1 ? 's' : ''}
+                              </p>
+                            </div>
+                            <input
+                              type="radio"
+                              className="h-4.5 w-4.5 accent-zinc-900 cursor-pointer"
+                              checked={watchedCategoryName === item.category}
+                              onChange={() =>
+                                form.setValue('categoryName', item.category, { shouldDirty: true })
+                              }
+                            />
+                          </label>
+                        ))
+                      )}
                     </div>
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 accent-zinc-900"
-                      checked={watchedSenderIds.includes(sender.id)}
-                      onChange={(e) =>
-                        form.setValue(
-                          'senderAccountIds',
-                          toggleId(watchedSenderIds, sender.id, e.target.checked),
-                          { shouldDirty: true },
-                        )
-                      }
-                    />
-                  </label>
-                ))}
-              </div>
-            )}
-            <FieldError
-              message={form.formState.errors.senderAccountIds?.message as string | undefined}
-            />
-          </div>
+                    <FieldError message={form.formState.errors.categoryName?.message} />
+                  </div>
+                )}
 
-          {/* Template — always fetched at latest version */}
-          <div className="space-y-2">
-            <Label>Template</Label>
-            <p className="text-xs text-zinc-400">
-              Templates are always loaded at their latest version — any edits you&apos;ve made are
-              reflected here automatically.
-            </p>
-            {isLoading ? (
-              <p className="text-xs text-zinc-400">Loading templates...</p>
-            ) : filteredTemplates.length === 0 ? (
-              <p className="text-xs text-zinc-400">No templates for this channel.</p>
-            ) : (
-              <div className="max-h-48 space-y-1.5 overflow-y-auto rounded-lg border border-zinc-200 p-2">
-                {filteredTemplates.map((tpl) => {
-                  const isSelected = watchedTemplateId === tpl.id;
-                  return (
-                    <label
-                      key={tpl.id}
-                      className={`flex cursor-pointer items-center justify-between rounded-md border px-3 py-2 transition-colors ${
-                        isSelected
-                          ? 'border-zinc-900 bg-zinc-50'
-                          : 'border-zinc-100 hover:bg-zinc-50'
-                      }`}
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-zinc-800">{tpl.name}</p>
-                        <p className="line-clamp-1 text-xs text-zinc-400">{tpl.subject}</p>
-                        {isSelected && (
-                          <Badge variant="neutral" className="mt-1 text-[10px]">
-                            Selected (latest version)
-                          </Badge>
-                        )}
-                      </div>
-                      <input
-                        type="radio"
-                        className="h-4 w-4 accent-zinc-900"
-                        checked={isSelected}
-                        onChange={() =>
-                          form.setValue('templateId', tpl.id, { shouldDirty: true })
-                        }
-                      />
-                    </label>
-                  );
-                })}
+                {targetMode === 'segment' && (
+                  <FieldError message={form.formState.errors.segmentId?.message} />
+                )}
+                {targetMode === 'contacts' && (
+                  <FieldError
+                    message={form.formState.errors.contactIds?.message as string | undefined}
+                  />
+                )}
               </div>
-            )}
-            <FieldError message={form.formState.errors.templateId?.message} />
-          </div>
 
-          {/* Schedule */}
-          <div className="space-y-2">
-            <Label>Timezone</Label>
-            <Input
-              placeholder="UTC"
-              {...form.register('timezone')}
-            />
-            <FieldError message={form.formState.errors.timezone?.message} />
+              {/* Template — always fetched at latest version */}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-zinc-700">Template</Label>
+                <p className="text-xs text-zinc-500 font-medium leading-relaxed">
+                  Templates are always loaded at their latest version — any edits you&apos;ve made are
+                  reflected here automatically.
+                </p>
+                {isLoading ? (
+                  <p className="text-xs text-zinc-400">Loading templates...</p>
+                ) : filteredTemplates.length === 0 ? (
+                  <p className="text-xs text-zinc-400">No templates for this channel.</p>
+                ) : (
+                  <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border border-zinc-200 p-2.5 bg-zinc-50/50">
+                    {filteredTemplates.map((tpl) => {
+                      const isSelected = watchedTemplateId === tpl.id;
+                      return (
+                        <label
+                          key={tpl.id}
+                          className={`flex cursor-pointer items-center justify-between rounded-md border px-3 py-2.5 transition-all shadow-xs ${
+                            isSelected
+                              ? 'border-zinc-900 bg-white ring-1 ring-zinc-900'
+                              : 'border-zinc-200 bg-white hover:bg-zinc-50'
+                          }`}
+                        >
+                          <div>
+                            <p className="text-sm font-semibold text-zinc-800">{tpl.name}</p>
+                            <p className="line-clamp-1 text-xs text-zinc-500 mt-0.5">{tpl.subject}</p>
+                            {isSelected && (
+                              <Badge variant="neutral" className="mt-1.5 text-[9px] font-semibold bg-zinc-100 text-zinc-800 border-zinc-200">
+                                Selected (latest version)
+                              </Badge>
+                            )}
+                          </div>
+                          <input
+                            type="radio"
+                            className="h-4.5 w-4.5 accent-zinc-900 cursor-pointer"
+                            checked={isSelected}
+                            onChange={() =>
+                              form.setValue('templateId', tpl.id, { shouldDirty: true })
+                            }
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+                <FieldError message={form.formState.errors.templateId?.message} />
+              </div>
+            </div>
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 border-t border-zinc-100 pt-4">
+          <div className="flex justify-end gap-3 border-t border-zinc-150 pt-5 mt-6">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting || isLaunching}
+              className="border-zinc-250 text-zinc-700 hover:bg-zinc-50 font-medium"
             >
               Cancel
             </Button>
@@ -618,12 +628,13 @@ export function CampaignEditRerunDialog({ open, campaign, onOpenChange, onSucces
                   variant="outline"
                   onClick={() => void handleSaveAndOrLaunch(false)}
                   disabled={isSubmitting || isLaunching || isLoading}
+                  className="border-zinc-250 text-zinc-700 hover:bg-zinc-50 font-medium"
                 >
                   {isSubmitting ? 'Saving...' : 'Save Draft'}
                 </Button>
                 <Button
                   type="button"
-                  className="bg-black text-white hover:bg-zinc-800"
+                  className="bg-black text-white hover:bg-zinc-850 font-semibold px-5"
                   onClick={() => void handleSaveAndOrLaunch(true)}
                   disabled={isSubmitting || isLaunching || isLoading}
                 >
@@ -633,6 +644,7 @@ export function CampaignEditRerunDialog({ open, campaign, onOpenChange, onSucces
             ) : (
               <Button
                 type="button"
+                className="bg-black text-white hover:bg-zinc-850 font-semibold px-5"
                 onClick={() => void handleSaveAndOrLaunch(false)}
                 disabled={isSubmitting || isLaunching || isLoading}
               >
