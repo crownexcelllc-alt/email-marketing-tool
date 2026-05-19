@@ -6,6 +6,13 @@ import { AuthUser } from '../../common/types/auth-user.type';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { WorkspaceSettings } from './schemas/workspace-settings.schema';
 
+interface ChannelLimitsShape {
+  dailyLimit?: number;
+  hourlyLimit?: number;
+  minDelaySeconds?: number;
+  maxDelaySeconds?: number;
+}
+
 interface WorkspaceSettingsShape {
   profile: {
     fullName: string;
@@ -31,6 +38,9 @@ interface WorkspaceSettingsShape {
     minDelaySeconds: number;
     maxDelaySeconds: number;
     respectSenderLimits: boolean;
+    email?: ChannelLimitsShape;
+    sms?: ChannelLimitsShape;
+    whatsapp?: ChannelLimitsShape;
   };
   tracking: {
     trackOpens: boolean;
@@ -88,7 +98,7 @@ export class SettingsService {
             workspaceId: workspaceObjectId,
           },
         },
-        { new: true, upsert: true },
+        { returnDocument: 'after', upsert: true },
       )
       .lean()
       .exec();
@@ -125,11 +135,14 @@ export class SettingsService {
         defaultLanguage: this.readString(whatsapp?.defaultLanguage, 'en'),
       },
       sendingLimits: {
-        dailyLimit: this.readNumber(sendingLimits?.dailyLimit, 5000),
-        hourlyLimit: this.readNumber(sendingLimits?.hourlyLimit, 500),
-        minDelaySeconds: this.readNumber(sendingLimits?.minDelaySeconds, 1),
-        maxDelaySeconds: this.readNumber(sendingLimits?.maxDelaySeconds, 10),
+        dailyLimit: 5000,
+        hourlyLimit: 500,
+        minDelaySeconds: 15,
+        maxDelaySeconds: 30,
         respectSenderLimits: this.readBoolean(sendingLimits?.respectSenderLimits, true),
+        email: this.normalizeChannelLimits(sendingLimits?.email),
+        sms: this.normalizeChannelLimits(sendingLimits?.sms),
+        whatsapp: this.normalizeChannelLimits(sendingLimits?.whatsapp),
       },
       tracking: {
         trackOpens: this.readBoolean(tracking?.trackOpens, true),
@@ -192,23 +205,23 @@ export class SettingsService {
         : current.whatsapp,
       sendingLimits: sendingLimits
         ? {
-            dailyLimit: this.readNumber(sendingLimits.dailyLimit, current.sendingLimits.dailyLimit),
-            hourlyLimit: this.readNumber(
-              sendingLimits.hourlyLimit,
-              current.sendingLimits.hourlyLimit,
-            ),
-            minDelaySeconds: this.readNumber(
-              sendingLimits.minDelaySeconds,
-              current.sendingLimits.minDelaySeconds,
-            ),
-            maxDelaySeconds: this.readNumber(
-              sendingLimits.maxDelaySeconds,
-              current.sendingLimits.maxDelaySeconds,
-            ),
+            dailyLimit: 5000,
+            hourlyLimit: 500,
+            minDelaySeconds: 15,
+            maxDelaySeconds: 30,
             respectSenderLimits: this.readBoolean(
               sendingLimits.respectSenderLimits,
               current.sendingLimits.respectSenderLimits,
             ),
+            email: this.hasProperty(sendingLimits, 'email')
+              ? this.normalizeChannelLimits(sendingLimits.email)
+              : current.sendingLimits.email,
+            sms: this.hasProperty(sendingLimits, 'sms')
+              ? this.normalizeChannelLimits(sendingLimits.sms)
+              : current.sendingLimits.sms,
+            whatsapp: this.hasProperty(sendingLimits, 'whatsapp')
+              ? this.normalizeChannelLimits(sendingLimits.whatsapp)
+              : current.sendingLimits.whatsapp,
           }
         : current.sendingLimits,
       tracking: tracking
@@ -222,6 +235,7 @@ export class SettingsService {
         : current.tracking,
     };
   }
+
 
   private async resolveWorkspaceId(authUser: AuthUser): Promise<string> {
     if (!authUser.workspaceId) {
@@ -282,4 +296,48 @@ export class SettingsService {
 
     return fallback;
   }
+
+  private normalizeChannelLimits(input: unknown): ChannelLimitsShape | undefined {
+    const record = this.asRecord(input);
+    if (!record) {
+      return undefined;
+    }
+
+    const dailyLimit = this.readOptionalNumber(record.dailyLimit);
+    const hourlyLimit = this.readOptionalNumber(record.hourlyLimit);
+    const minDelaySeconds = this.readOptionalNumber(record.minDelaySeconds);
+    const maxDelaySeconds = this.readOptionalNumber(record.maxDelaySeconds);
+
+    if (
+      dailyLimit === undefined &&
+      hourlyLimit === undefined &&
+      minDelaySeconds === undefined &&
+      maxDelaySeconds === undefined
+    ) {
+      return undefined;
+    }
+
+    return {
+      dailyLimit,
+      hourlyLimit,
+      minDelaySeconds,
+      maxDelaySeconds,
+    };
+  }
+
+  private readOptionalNumber(value: unknown): number | undefined {
+    if (value === null || value === undefined || value === '') {
+      return undefined;
+    }
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+    return undefined;
+  }
+
+  private hasProperty(obj: Record<string, unknown>, prop: string): boolean {
+    return Object.prototype.hasOwnProperty.call(obj, prop);
+  }
 }
+

@@ -19,13 +19,24 @@ export interface WhatsAppSettings {
   defaultLanguage: string;
 }
 
+export interface ChannelLimits {
+  dailyLimit?: number;
+  hourlyLimit?: number;
+  minDelaySeconds?: number;
+  maxDelaySeconds?: number;
+}
+
 export interface SendingLimitsSettings {
   dailyLimit: number;
   hourlyLimit: number;
   minDelaySeconds: number;
   maxDelaySeconds: number;
   respectSenderLimits: boolean;
+  email?: ChannelLimits;
+  sms?: ChannelLimits;
+  whatsapp?: ChannelLimits;
 }
+
 
 export interface TrackingSettings {
   trackOpens: boolean;

@@ -4,6 +4,7 @@ import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { Model, Types } from 'mongoose';
 import { AppException } from '../../../common/exceptions/app.exception';
+import { WorkspaceSettings } from '../../settings/schemas/workspace-settings.schema';
 import {
   CampaignDistributionStrategy,
   CampaignRecipientStatus,
@@ -58,6 +59,8 @@ export class CampaignSchedulerProcessor extends WorkerHost {
     private readonly contactModel: Model<Contact>,
     @InjectModel(Segment.name)
     private readonly segmentModel: Model<Segment>,
+    @InjectModel(WorkspaceSettings.name)
+    private readonly workspaceSettingsModel: Model<WorkspaceSettings>,
     private readonly queueService: QueueService,
   ) {
     super();
@@ -133,7 +136,26 @@ export class CampaignSchedulerProcessor extends WorkerHost {
       return;
     }
 
-    const senderInputs = await this.resolveEligibleSenderCapacityInputs(campaign);
+    const settings = await this.workspaceSettingsModel
+      .findOne({ workspaceId: campaign.workspaceId })
+      .lean()
+      .exec();
+
+    const channel = campaign.channel; // 'email' or 'whatsapp'
+    const channelLimits = settings?.sendingLimits?.[channel as 'email' | 'whatsapp' | 'sms'];
+
+    const dailyLimit = channelLimits?.dailyLimit ?? settings?.sendingLimits?.dailyLimit ?? 5000;
+    const hourlyLimit = channelLimits?.hourlyLimit ?? settings?.sendingLimits?.hourlyLimit ?? 500;
+    const minDelay = channelLimits?.minDelaySeconds ?? settings?.sendingLimits?.minDelaySeconds ?? 15;
+    const maxDelay = channelLimits?.maxDelaySeconds ?? settings?.sendingLimits?.maxDelaySeconds ?? 30;
+    const respectSenderLimits = settings?.sendingLimits?.respectSenderLimits ?? true;
+
+    const senderInputs = await this.resolveEligibleSenderCapacityInputs(
+      campaign,
+      dailyLimit,
+      hourlyLimit,
+      respectSenderLimits,
+    );
     const normalizedSenders = normalizeSenderCapacities(senderInputs);
     if (!normalizedSenders.length) {
       throw new AppException(
@@ -216,8 +238,9 @@ export class CampaignSchedulerProcessor extends WorkerHost {
       });
     }
 
+    let accumulatedDelayMs = 0;
     const enqueueResults = await Promise.all(
-      distribution.assignments.map((assignment) => {
+      distribution.assignments.map((assignment, index) => {
         const recipient = recipientByContactId.get(assignment.contactId);
         if (!recipient) {
           throw new AppException(
@@ -234,11 +257,15 @@ export class CampaignSchedulerProcessor extends WorkerHost {
           contactId: assignment.contactId,
         };
 
+        const delay = index === 0 ? 0 : accumulatedDelayMs;
+        const randomDelaySeconds = minDelay + Math.random() * (maxDelay - minDelay);
+        accumulatedDelayMs += Math.round(randomDelaySeconds * 1000);
+
         if (campaign.channel === 'email') {
-          return this.queueService.enqueueEmailSend(payloadBase);
+          return this.queueService.enqueueEmailSend(payloadBase, { delay });
         }
 
-        return this.queueService.enqueueWhatsappSend(payloadBase);
+        return this.queueService.enqueueWhatsappSend(payloadBase, { delay });
       }),
     );
 
@@ -285,6 +312,9 @@ export class CampaignSchedulerProcessor extends WorkerHost {
 
   private async resolveEligibleSenderCapacityInputs(
     campaign: Campaign,
+    dailyLimit: number,
+    hourlyLimit: number,
+    respectSenderLimits: boolean,
   ): Promise<DistributionSenderInput[]> {
     const channelType =
       campaign.channel === 'email' ? SenderChannelType.EMAIL : SenderChannelType.WHATSAPP;
@@ -300,11 +330,16 @@ export class CampaignSchedulerProcessor extends WorkerHost {
       .lean()
       .exec();
 
-    return senders.map((sender) => ({
-      senderAccountId: String(sender._id),
-      dailyLimit: sender.email?.dailyLimit ?? campaign.dailyCap ?? Number.MAX_SAFE_INTEGER,
-      hourlyLimit: sender.email?.hourlyLimit ?? campaign.dailyCap ?? Number.MAX_SAFE_INTEGER,
-    }));
+    return senders.map((sender) => {
+      const senderDaily = respectSenderLimits ? sender.email?.dailyLimit : undefined;
+      const senderHourly = respectSenderLimits ? sender.email?.hourlyLimit : undefined;
+
+      return {
+        senderAccountId: String(sender._id),
+        dailyLimit: senderDaily ?? campaign.dailyCap ?? dailyLimit,
+        hourlyLimit: senderHourly ?? campaign.dailyCap ?? hourlyLimit,
+      };
+    });
   }
 
   private async resolveAudienceRecipients(
@@ -356,6 +391,8 @@ export class CampaignSchedulerProcessor extends WorkerHost {
         campaignId: (campaign as any)._id,
         status: {
           $in: [
+            CampaignRecipientStatus.QUEUED,
+            CampaignRecipientStatus.SENDING,
             CampaignRecipientStatus.SENT,
             CampaignRecipientStatus.FAILED,
             CampaignRecipientStatus.SKIPPED,

@@ -1,4 +1,4 @@
-﻿import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { AppException } from '../../common/exceptions/app.exception';
@@ -58,7 +58,7 @@ export class UsersService {
             },
           },
         },
-        { new: true },
+        { returnDocument: 'after' },
       )
       .exec();
   }

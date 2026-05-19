@@ -171,9 +171,27 @@ export function SettingsDashboard() {
         <SendingLimitsSettingsForm
           values={settings.sendingLimits}
           isSaving={savingSection === 'sendingLimits'}
-          onSubmit={async (values: SendingLimitsSettingsFormValues) =>
-            saveSection('sendingLimits', values, 'Sending limits saved.')
-          }
+          onSubmit={async (formValues: SendingLimitsSettingsFormValues) => {
+            const { channel, respectSenderLimits, dailyLimit, hourlyLimit, minDelaySeconds, maxDelaySeconds } = formValues;
+            const existingLimits = settings.sendingLimits;
+
+            const channelPayload = (dailyLimit === undefined && hourlyLimit === undefined && minDelaySeconds === undefined && maxDelaySeconds === undefined)
+              ? null
+              : {
+                  dailyLimit,
+                  hourlyLimit,
+                  minDelaySeconds,
+                  maxDelaySeconds,
+                };
+
+            const updatedLimits: any = {
+              ...existingLimits,
+              respectSenderLimits,
+              [channel]: channelPayload,
+            };
+
+            await saveSection('sendingLimits', updatedLimits, 'Sending limits saved.');
+          }}
         />
       );
     }

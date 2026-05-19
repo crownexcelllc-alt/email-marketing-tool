@@ -47,6 +47,21 @@ export class WhatsAppSettings {
 }
 
 @Schema({ _id: false })
+export class ChannelLimits {
+  @Prop({ type: Number })
+  dailyLimit?: number;
+
+  @Prop({ type: Number })
+  hourlyLimit?: number;
+
+  @Prop({ type: Number })
+  minDelaySeconds?: number;
+
+  @Prop({ type: Number })
+  maxDelaySeconds?: number;
+}
+
+@Schema({ _id: false })
 export class SendingLimitsSettings {
   @Prop({ default: 5000 })
   dailyLimit!: number;
@@ -54,14 +69,23 @@ export class SendingLimitsSettings {
   @Prop({ default: 500 })
   hourlyLimit!: number;
 
-  @Prop({ default: 1 })
+  @Prop({ default: 15 })
   minDelaySeconds!: number;
 
-  @Prop({ default: 10 })
+  @Prop({ default: 30 })
   maxDelaySeconds!: number;
 
   @Prop({ default: true })
   respectSenderLimits!: boolean;
+
+  @Prop({ type: ChannelLimits })
+  email?: ChannelLimits;
+
+  @Prop({ type: ChannelLimits })
+  sms?: ChannelLimits;
+
+  @Prop({ type: ChannelLimits })
+  whatsapp?: ChannelLimits;
 }
 
 @Schema({ _id: false })

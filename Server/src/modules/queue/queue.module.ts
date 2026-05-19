@@ -16,6 +16,10 @@ import {
   SenderAccountSchema,
 } from '../sender-accounts/schemas/sender-account.schema';
 import { WhatsappModule } from '../whatsapp/whatsapp.module';
+import {
+  WorkspaceSettings,
+  WorkspaceSettingsSchema,
+} from '../settings/schemas/workspace-settings.schema';
 import { AnalyticsAggregationProcessor } from './processors/analytics-aggregation.processor';
 import { CampaignSchedulerProcessor } from './processors/campaign-scheduler.processor';
 import { ContactImportProcessor } from './processors/contact-import.processor';
@@ -84,6 +88,7 @@ class QueueRuntimeModeReporter implements OnModuleInit {
       { name: SenderAccount.name, schema: SenderAccountSchema },
       { name: Contact.name, schema: ContactSchema },
       { name: Segment.name, schema: SegmentSchema },
+      { name: WorkspaceSettings.name, schema: WorkspaceSettingsSchema },
     ]),
     BullModule.registerQueue(...REGISTERED_QUEUES.map((name) => ({ name }))),
   ],

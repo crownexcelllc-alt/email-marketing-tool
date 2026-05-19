@@ -31,18 +31,37 @@ export const whatsappSettingsSchema = z.object({
   defaultLanguage: z.string().trim().min(2, 'Default language is required.'),
 });
 
+const optionalPositiveInteger = z.preprocess(
+  (val) => (val === '' || val === null || val === undefined ? undefined : val),
+  z.coerce.number().int('Must be a whole number.').min(1, 'Must be at least 1.').optional()
+);
+
+const optionalNonNegativeInteger = z.preprocess(
+  (val) => (val === '' || val === null || val === undefined ? undefined : val),
+  z.coerce.number().int('Must be a whole number.').min(0, 'Cannot be negative.').optional()
+);
+
 export const sendingLimitsSettingsSchema = z
   .object({
-    dailyLimit: positiveInteger,
-    hourlyLimit: positiveInteger,
-    minDelaySeconds: nonNegativeInteger,
-    maxDelaySeconds: nonNegativeInteger,
+    channel: z.enum(['email', 'sms', 'whatsapp']),
+    dailyLimit: optionalPositiveInteger,
+    hourlyLimit: optionalPositiveInteger,
+    minDelaySeconds: optionalNonNegativeInteger,
+    maxDelaySeconds: optionalNonNegativeInteger,
     respectSenderLimits: z.boolean(),
   })
-  .refine((value) => value.maxDelaySeconds >= value.minDelaySeconds, {
-    message: 'Max delay must be greater than or equal to min delay.',
-    path: ['maxDelaySeconds'],
-  });
+  .refine(
+    (value) => {
+      if (value.minDelaySeconds !== undefined && value.maxDelaySeconds !== undefined) {
+        return value.maxDelaySeconds >= value.minDelaySeconds;
+      }
+      return true;
+    },
+    {
+      message: 'Max delay must be greater than or equal to min delay.',
+      path: ['maxDelaySeconds'],
+    }
+  );
 
 export const trackingSettingsSchema = z.object({
   trackOpens: z.boolean(),

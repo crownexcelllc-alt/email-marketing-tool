@@ -20,6 +20,7 @@ import {
   CampaignChannel,
   CampaignDistributionStrategy,
   CampaignStatus,
+  CampaignRecipientStatus,
 } from './constants/campaign.enums';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
 import { ListCampaignAudienceDto } from './dto/list-campaign-audience.dto';
@@ -366,7 +367,7 @@ export class CampaignsService {
           editedAt: campaign.editedAt,
         },
       },
-      { new: true },
+      { returnDocument: 'after' },
     ).exec();
     return this.toResponse(saved || campaign);
   }
@@ -569,6 +570,16 @@ export class CampaignsService {
         lastClickedAt: null,
         lastWhatsappStatusAt: null,
       };
+    } else {
+      await this.campaignRecipientModel.updateMany(
+        {
+          campaignId: campaign._id,
+          status: { $in: [CampaignRecipientStatus.QUEUED, CampaignRecipientStatus.SENDING] },
+        },
+        {
+          $set: { status: CampaignRecipientStatus.PENDING },
+        },
+      ).exec();
     }
 
     campaign.status = CampaignStatus.RUNNING;

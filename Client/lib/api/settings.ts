@@ -32,8 +32,8 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
   sendingLimits: {
     dailyLimit: 5000,
     hourlyLimit: 500,
-    minDelaySeconds: 1,
-    maxDelaySeconds: 10,
+    minDelaySeconds: 15,
+    maxDelaySeconds: 30,
     respectSenderLimits: true,
   },
   tracking: {
@@ -174,6 +174,38 @@ function parseWhatsAppSettings(record: Record<string, unknown>): WhatsAppSetting
   };
 }
 
+function parseChannelLimits(record: Record<string, unknown> | null | undefined): {
+  dailyLimit?: number;
+  hourlyLimit?: number;
+  minDelaySeconds?: number;
+  maxDelaySeconds?: number;
+} | undefined {
+  if (!record) {
+    return undefined;
+  }
+
+  const dailyLimit = getNumber(record, ['dailyLimit']);
+  const hourlyLimit = getNumber(record, ['hourlyLimit']);
+  const minDelaySeconds = getNumber(record, ['minDelaySeconds']);
+  const maxDelaySeconds = getNumber(record, ['maxDelaySeconds']);
+
+  if (
+    dailyLimit === undefined &&
+    hourlyLimit === undefined &&
+    minDelaySeconds === undefined &&
+    maxDelaySeconds === undefined
+  ) {
+    return undefined;
+  }
+
+  return {
+    dailyLimit,
+    hourlyLimit,
+    minDelaySeconds,
+    maxDelaySeconds,
+  };
+}
+
 function parseSendingLimitsSettings(record: Record<string, unknown>): SendingLimitsSettings {
   return {
     dailyLimit:
@@ -189,6 +221,9 @@ function parseSendingLimitsSettings(record: Record<string, unknown>): SendingLim
     respectSenderLimits:
       getBoolean(record, ['respectSenderLimits']) ??
       DEFAULT_SETTINGS.sendingLimits.respectSenderLimits,
+    email: parseChannelLimits(getRecord(record.email)),
+    sms: parseChannelLimits(getRecord(record.sms)),
+    whatsapp: parseChannelLimits(getRecord(record.whatsapp)),
   };
 }
 
