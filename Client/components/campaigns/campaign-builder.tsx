@@ -11,6 +11,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { createCampaign, deleteCampaign, getCampaignContacts, getCampaigns, startCampaign, duplicateCampaign, updateCampaign } from '@/lib/api/campaigns';
 import { Copy } from 'lucide-react';
 import { bulkAddLabelToContacts, updateContact } from '@/lib/api/contacts';
@@ -156,6 +164,24 @@ function buildRerunDefaults(campaign: Campaign): CampaignBuilderFormValues {
   };
 }
 
+interface CampaignDraft {
+  values: CampaignBuilderFormValues;
+  currentStep: number;
+  activeCampaignId: string | null;
+  updatedAt: string;
+}
+
+function isDraftEmpty(values: CampaignBuilderFormValues): boolean {
+  return (
+    !values.name &&
+    !values.description &&
+    (!values.contactIds || values.contactIds.length === 0) &&
+    !values.categoryName &&
+    (!values.senderAccountIds || values.senderAccountIds.length === 0) &&
+    !values.templateId
+  );
+}
+
 export function CampaignBuilder() {
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoadingOptions, setIsLoadingOptions] = useState(true);
@@ -168,6 +194,10 @@ export function CampaignBuilder() {
   const [deletingCampaignId, setDeletingCampaignId] = useState<string | null>(null);
   const [duplicatingCampaignId, setDuplicatingCampaignId] = useState<string | null>(null);
   const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
+
+  const [draftPromptOpen, setDraftPromptOpen] = useState(false);
+  const [pendingDraft, setPendingDraft] = useState<CampaignDraft | null>(null);
+  const [isReadyToSave, setIsReadyToSave] = useState(false);
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [categories, setCategories] = useState<ContactCategorySummaryItem[]>([]);
@@ -252,6 +282,64 @@ export function CampaignBuilder() {
     control: form.control,
     name: 'categoryName',
   }) ?? '';
+
+  const formValues = form.watch();
+
+  // Mount effect: Check for existing draft in localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('campaign_builder_draft');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved) as CampaignDraft;
+          if (parsed && parsed.values && !isDraftEmpty(parsed.values)) {
+            setPendingDraft(parsed);
+            setDraftPromptOpen(true);
+            return;
+          }
+        } catch (e) {
+          console.error('Error parsing campaign draft:', e);
+        }
+      }
+      setIsReadyToSave(true);
+    }
+  }, []);
+
+  // Auto-save effect: Save draft on any changes to form values, currentStep, or activeCampaignId
+  useEffect(() => {
+    if (!isReadyToSave) return;
+
+    if (isDraftEmpty(formValues)) {
+      localStorage.removeItem('campaign_builder_draft');
+      return;
+    }
+
+    const draft: CampaignDraft = {
+      values: formValues,
+      currentStep,
+      activeCampaignId,
+      updatedAt: new Date().toISOString(),
+    };
+    localStorage.setItem('campaign_builder_draft', JSON.stringify(draft));
+  }, [formValues, currentStep, activeCampaignId, isReadyToSave]);
+
+  const handleResumeDraft = () => {
+    if (pendingDraft) {
+      form.reset(pendingDraft.values);
+      setCurrentStep(pendingDraft.currentStep);
+      setActiveCampaignId(pendingDraft.activeCampaignId);
+    }
+    setDraftPromptOpen(false);
+    setIsReadyToSave(true);
+    toast.success('Campaign draft restored.');
+  };
+
+  const handleDiscardDraft = () => {
+    localStorage.removeItem('campaign_builder_draft');
+    setDraftPromptOpen(false);
+    setIsReadyToSave(true);
+    toast.info('Draft discarded.');
+  };
 
   const loadOptions = useCallback(async (channel: 'email' | 'whatsapp') => {
     setIsLoadingOptions(true);
@@ -431,6 +519,7 @@ export function CampaignBuilder() {
       }
 
       setLastLaunchedCampaignId(campaign.id);
+      localStorage.removeItem('campaign_builder_draft');
       toast.success(`Campaign "${campaign.name}" launched.`);
       await loadRecentCampaigns();
     } catch (error: unknown) {
@@ -1124,6 +1213,49 @@ export function CampaignBuilder() {
         onSubmit={handleSaveAudienceContact}
         isSubmitting={isAudienceSaving}
       />
+
+      <Dialog open={draftPromptOpen} onOpenChange={() => {}}>
+        <DialogContent
+          className="sm:max-w-[700px]"
+          showClose={false}
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>Resume Unsaved Campaign?</DialogTitle>
+            <DialogDescription>
+              We found an unsaved campaign draft from your last session. Would you like to resume editing from where you left off?
+            </DialogDescription>
+          </DialogHeader>
+          {pendingDraft && (
+            <div className="mt-4 rounded-lg bg-zinc-900 p-4 text-sm border border-zinc-800">
+              <p className="font-medium text-zinc-100">{pendingDraft.values.name || 'Untitled Campaign'}</p>
+              <p className="text-xs text-zinc-400 mt-1">
+                Last updated: {formatCampaignTimestamp(pendingDraft.updatedAt)}
+              </p>
+              <p className="text-xs text-zinc-500 mt-2">
+                Step {pendingDraft.currentStep + 1} of {CAMPAIGN_STEPS.length}: {CAMPAIGN_STEPS[pendingDraft.currentStep]?.label}
+              </p>
+            </div>
+          )}
+          <DialogFooter className="mt-6 flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="border-zinc-700 text-zinc-200 hover:bg-zinc-800"
+              onClick={handleDiscardDraft}
+            >
+              Discard Draft
+            </Button>
+            <Button
+              type="button"
+              onClick={handleResumeDraft}
+            >
+              Resume Editing
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
