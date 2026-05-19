@@ -164,7 +164,11 @@ export default function EditTemplatePage() {
     setIsSaveOptionsOpen(false);
     setIsSubmitting(true);
     try {
-      await updateTemplate(template.id, pendingSaveValues);
+      const payload = {
+        ...pendingSaveValues,
+        subject: pendingSaveValues.subject === template.name ? pendingSaveValues.name : pendingSaveValues.subject,
+      };
+      await updateTemplate(template.id, payload);
       form.reset(pendingSaveValues); // Clear dirty state
       toast.success('Template updated successfully.');
       router.push('/dashboard/templates');
@@ -181,7 +185,11 @@ export default function EditTemplatePage() {
     setIsSaveOptionsOpen(false);
     setIsSubmitting(true);
     try {
-      const newTemplate = await createTemplate(pendingSaveValues);
+      const payload = {
+        ...pendingSaveValues,
+        subject: pendingSaveValues.subject === template.name ? pendingSaveValues.name : pendingSaveValues.subject,
+      };
+      const newTemplate = await createTemplate(payload);
       form.reset(pendingSaveValues); // Clear dirty state
       toast.success(`Template copy "${newTemplate.name}" created successfully.`);
       router.push('/dashboard/templates');

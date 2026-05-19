@@ -442,6 +442,11 @@ export class TemplatesService {
     const template = await this.findOwnedTemplate(id, authUser);
 
     const sampleData = await this.resolveSampleData(workspaceId, dto);
+    sampleData.template = {
+      id: template._id.toString(),
+      name: template.name,
+    };
+    sampleData.templateName = template.name;
 
     return this.previewService.renderTemplate(template, sampleData);
   }

@@ -142,7 +142,11 @@ export default function TemplatePreviewPage() {
 
     setIsFinalSaving(true);
     try {
-      await createTemplate(draft);
+      const payload = {
+        ...draft,
+        subject: draft.subject === (template?.name ?? '') ? draft.name : draft.subject,
+      };
+      await createTemplate(payload);
       clearLibraryTemplateDraft(templateId);
       toast.success('Template saved successfully.');
       router.push('/dashboard/templates');

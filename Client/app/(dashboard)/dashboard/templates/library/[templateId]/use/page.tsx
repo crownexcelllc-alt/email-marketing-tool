@@ -309,6 +309,7 @@ export default function UseTemplatePage() {
       const payload: TemplateFormValues = {
         ...values,
         name: finalizedName,
+        subject: values.subject === (providerTemplate?.name ?? '') ? finalizedName : values.subject,
       };
       await createTemplate(payload);
       clearLibraryTemplateDraft(templateId);
@@ -341,9 +342,11 @@ export default function UseTemplatePage() {
     try {
       const values = form.getValues();
       const fallbackName = providerTemplate ? `${providerTemplate.name} copy` : 'Template copy';
+      const customName = (values.name ?? '').trim() || fallbackName;
       const payload: TemplateFormValues = {
         ...values,
-        name: (values.name ?? '').trim() || fallbackName,
+        name: customName,
+        subject: values.subject === (providerTemplate?.name ?? '') ? customName : values.subject,
       };
       await createTemplate(payload);
       clearLibraryTemplateDraft(templateId);

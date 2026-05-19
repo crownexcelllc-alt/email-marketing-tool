@@ -634,6 +634,12 @@ export class EmailService {
         id: context.campaign._id.toString(),
         name: context.campaign.name,
       },
+      // Template metadata
+      template: {
+        id: context.template._id.toString(),
+        name: context.template.name,
+      },
+      templateName: context.template.name,
     } as Record<string, unknown>;
 
     return renderEmailTemplateWithContact(
