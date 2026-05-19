@@ -121,7 +121,7 @@ export class CampaignSchedulerProcessor extends WorkerHost {
       await this.campaignModel.updateOne(
         {
           _id: campaignId,
-          status: { $nin: [CampaignStatus.PAUSED, CampaignStatus.CANCELLED] },
+          status: { $in: [CampaignStatus.SCHEDULED, CampaignStatus.RUNNING] },
         },
         {
           $set: {
@@ -259,11 +259,11 @@ export class CampaignSchedulerProcessor extends WorkerHost {
       },
     ).exec();
 
-    // Only update status to RUNNING if it wasn't paused or cancelled in the meantime
+    // Only update status to RUNNING if it wasn't paused, cancelled, or completed in the meantime
     await this.campaignModel.updateOne(
       {
         _id: campaignId,
-        status: { $nin: [CampaignStatus.PAUSED, CampaignStatus.CANCELLED] },
+        status: { $in: [CampaignStatus.SCHEDULED, CampaignStatus.RUNNING] },
       },
       {
         $set: { status: CampaignStatus.RUNNING },

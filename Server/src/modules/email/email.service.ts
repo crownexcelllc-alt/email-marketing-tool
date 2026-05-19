@@ -711,7 +711,7 @@ export class EmailService {
       await this.campaignModel.updateOne(
         {
           _id: campaignId,
-          status: { $nin: [CampaignStatus.PAUSED, CampaignStatus.CANCELLED] },
+          status: CampaignStatus.RUNNING,
         },
         {
           $set: {
