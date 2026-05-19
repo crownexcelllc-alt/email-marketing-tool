@@ -118,7 +118,15 @@ export class CampaignSchedulerProcessor extends WorkerHost {
     if (!recipients.length) {
       campaign.stats.queuedRecipients = 0;
       campaign.status = CampaignStatus.COMPLETED;
-      await campaign.save();
+      await this.campaignModel.updateOne(
+        { _id: campaignId },
+        {
+          $set: {
+            status: CampaignStatus.COMPLETED,
+            'stats.queuedRecipients': 0,
+          },
+        },
+      ).exec();
       return;
     }
 
@@ -231,12 +239,33 @@ export class CampaignSchedulerProcessor extends WorkerHost {
       }),
     );
 
-    campaign.status = CampaignStatus.RUNNING;
-    campaign.stats.totalRecipients = campaign.stats.totalRecipients || recipients.length;
-    campaign.stats.queuedRecipients = distribution.assignments.length;
-    campaign.stats.skippedRecipients = distribution.remainingRecipientCount;
-    campaign.stats.lastStartedAt = campaign.stats.lastStartedAt ?? now;
-    await campaign.save();
+    const totalRecipients = campaign.stats.totalRecipients || recipients.length;
+    const queuedRecipients = distribution.assignments.length;
+    const skippedRecipients = distribution.remainingRecipientCount;
+    const lastStartedAt = campaign.stats.lastStartedAt ?? now;
+
+    await this.campaignModel.updateOne(
+      { _id: campaignId },
+      {
+        $set: {
+          'stats.totalRecipients': totalRecipients,
+          'stats.queuedRecipients': queuedRecipients,
+          'stats.skippedRecipients': skippedRecipients,
+          'stats.lastStartedAt': lastStartedAt,
+        },
+      },
+    ).exec();
+
+    // Only update status to RUNNING if it wasn't paused or cancelled in the meantime
+    await this.campaignModel.updateOne(
+      {
+        _id: campaignId,
+        status: { $nin: [CampaignStatus.PAUSED, CampaignStatus.CANCELLED] },
+      },
+      {
+        $set: { status: CampaignStatus.RUNNING },
+      },
+    ).exec();
 
     this.logger.log(
       `Scheduler created ${enqueueResults.length} send jobs for campaign=${campaign.id} with strategy=${strategy}`,

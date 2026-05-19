@@ -344,8 +344,31 @@ export class CampaignsService {
 
     campaign.editedAt = new Date();
 
-    const saved = await campaign.save();
-    return this.toResponse(saved);
+    const saved = await this.campaignModel.findOneAndUpdate(
+      { _id: campaign._id },
+      {
+        $set: {
+          name: campaign.name,
+          senderAccountIds: campaign.senderAccountIds,
+          segmentId: campaign.segmentId,
+          contactIds: campaign.contactIds,
+          templateId: campaign.templateId,
+          timezone: campaign.timezone,
+          startAt: campaign.startAt,
+          sendingWindowStart: campaign.sendingWindowStart,
+          sendingWindowEnd: campaign.sendingWindowEnd,
+          dailyCap: campaign.dailyCap,
+          trackOpens: campaign.trackOpens,
+          trackClicks: campaign.trackClicks,
+          randomDelayMinSeconds: campaign.randomDelayMinSeconds,
+          randomDelayMaxSeconds: campaign.randomDelayMaxSeconds,
+          'settings.distributionStrategy': campaign.settings?.distributionStrategy,
+          editedAt: campaign.editedAt,
+        },
+      },
+      { new: true },
+    ).exec();
+    return this.toResponse(saved || campaign);
   }
 
   async remove(id: string, authUser: AuthUser): Promise<{ deleted: true; id: string }> {
@@ -449,7 +472,19 @@ export class CampaignsService {
     campaign.stats.lastStartedAt = new Date();
     campaign.trackingBaseUrl = trackingBaseUrl;
 
-    await campaign.save();
+    await this.campaignModel.updateOne(
+      { _id: campaign._id },
+      {
+        $set: {
+          status: campaign.status,
+          'stats.totalRecipients': campaign.stats.totalRecipients,
+          'stats.queuedRecipients': campaign.stats.queuedRecipients,
+          'stats.skippedRecipients': campaign.stats.skippedRecipients,
+          'stats.lastStartedAt': campaign.stats.lastStartedAt,
+          trackingBaseUrl: campaign.trackingBaseUrl,
+        },
+      },
+    ).exec();
 
     const delayMs = campaign.startAt
       ? Math.max(0, campaign.startAt.getTime() - Date.now())
@@ -479,8 +514,20 @@ export class CampaignsService {
       );
     }
 
+    const result = await this.campaignModel.updateOne(
+      { _id: campaign._id, status: { $ne: CampaignStatus.COMPLETED } },
+      { $set: { status: CampaignStatus.PAUSED } },
+    ).exec();
+
+    if (result.matchedCount === 0) {
+      throw new AppException(
+        HttpStatus.BAD_REQUEST,
+        'CAMPAIGN_PAUSE_NOT_ALLOWED',
+        'Campaign is already completed',
+      );
+    }
+
     campaign.status = CampaignStatus.PAUSED;
-    await campaign.save();
     return this.toResponse(campaign);
   }
 
@@ -497,7 +544,8 @@ export class CampaignsService {
       );
     }
 
-    if (campaign.status === CampaignStatus.CANCELLED) {
+    const wasCancelled = campaign.status === CampaignStatus.CANCELLED;
+    if (wasCancelled) {
       // Clear past recipient send lists so scheduler can rebuild audience assignments
       await this.campaignRecipientModel.deleteMany({ campaignId: campaign._id }).exec();
 
@@ -525,7 +573,19 @@ export class CampaignsService {
 
     campaign.status = CampaignStatus.RUNNING;
     campaign.trackingBaseUrl = trackingBaseUrl;
-    await campaign.save();
+
+    const updateFields: Record<string, any> = {
+      status: CampaignStatus.RUNNING,
+      trackingBaseUrl: trackingBaseUrl,
+    };
+    if (wasCancelled) {
+      updateFields.stats = campaign.stats;
+    }
+
+    await this.campaignModel.updateOne(
+      { _id: campaign._id },
+      { $set: updateFields },
+    ).exec();
 
     await this.queueService.enqueueCampaignScheduler({
       campaignId: campaign.id,
@@ -549,8 +609,20 @@ export class CampaignsService {
       );
     }
 
+    const result = await this.campaignModel.updateOne(
+      { _id: campaign._id, status: { $ne: CampaignStatus.COMPLETED } },
+      { $set: { status: CampaignStatus.CANCELLED } },
+    ).exec();
+
+    if (result.matchedCount === 0) {
+      throw new AppException(
+        HttpStatus.BAD_REQUEST,
+        'CAMPAIGN_CANCEL_NOT_ALLOWED',
+        'Campaign is already completed',
+      );
+    }
+
     campaign.status = CampaignStatus.CANCELLED;
-    await campaign.save();
     return this.toResponse(campaign);
   }
 

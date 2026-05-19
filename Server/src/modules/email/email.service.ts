@@ -101,34 +101,33 @@ export class EmailService {
   ): Promise<EmailSendProcessOutcome> {
     const context = await this.loadContext(input);
 
-    if (
-      context.campaign.status === CampaignStatus.CANCELLED ||
-      context.campaign.status === CampaignStatus.COMPLETED
-    ) {
-      await this.recordSendEvent({
-        context,
-        eventType: EmailSendEventType.SEND_FAILED_PERMANENT,
-        failureCategory: EmailFailureCategory.PERMANENT,
-        failureCode: 'CAMPAIGN_NOT_SENDABLE',
-        failureMessage: 'Campaign is not in sendable state',
-        attempt: ctx.attempt,
-        maxAttempts: ctx.maxAttempts,
-      });
-      return { type: 'noop' };
-    }
-
-    if (context.campaign.status === CampaignStatus.PAUSED) {
-      await this.campaignRecipientModel
-        .updateOne(
-          { _id: context.recipient._id },
-          {
-            $set: {
-              status: CampaignRecipientStatus.QUEUED,
-              failureReason: '',
+    if (context.campaign.status !== CampaignStatus.RUNNING) {
+      if (
+        context.campaign.status === CampaignStatus.CANCELLED ||
+        context.campaign.status === CampaignStatus.COMPLETED
+      ) {
+        await this.recordSendEvent({
+          context,
+          eventType: EmailSendEventType.SEND_FAILED_PERMANENT,
+          failureCategory: EmailFailureCategory.PERMANENT,
+          failureCode: 'CAMPAIGN_NOT_SENDABLE',
+          failureMessage: 'Campaign is not in sendable state',
+          attempt: ctx.attempt,
+          maxAttempts: ctx.maxAttempts,
+        });
+      } else if (context.campaign.status === CampaignStatus.PAUSED) {
+        await this.campaignRecipientModel
+          .updateOne(
+            { _id: context.recipient._id },
+            {
+              $set: {
+                status: CampaignRecipientStatus.QUEUED,
+                failureReason: '',
+              },
             },
-          },
-        )
-        .exec();
+          )
+          .exec();
+      }
       return { type: 'noop' };
     }
 
@@ -691,6 +690,14 @@ export class EmailService {
     const campaign = await this.campaignModel.findById(campaignId).exec();
     if (!campaign) return;
 
+    if (
+      campaign.status === CampaignStatus.PAUSED ||
+      campaign.status === CampaignStatus.CANCELLED ||
+      campaign.status === CampaignStatus.COMPLETED
+    ) {
+      return;
+    }
+
     const stats = campaign.stats || {};
     const total = stats.totalRecipients || campaign.contactIds.length || 0;
     const sent = stats.sentRecipients ?? 0;
@@ -701,7 +708,18 @@ export class EmailService {
     if (processed >= total && total > 0) {
       campaign.status = CampaignStatus.COMPLETED;
       campaign.stats.queuedRecipients = 0;
-      await campaign.save();
+      await this.campaignModel.updateOne(
+        {
+          _id: campaignId,
+          status: { $nin: [CampaignStatus.PAUSED, CampaignStatus.CANCELLED] },
+        },
+        {
+          $set: {
+            status: CampaignStatus.COMPLETED,
+            'stats.queuedRecipients': 0,
+          },
+        },
+      ).exec();
     }
   }
 
