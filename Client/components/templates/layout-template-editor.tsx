@@ -2275,6 +2275,7 @@ export function LayoutTemplateEditor({
     let assetModalObserver: MutationObserver | null = null;
     let frameToolbarListenersCleanup: (() => void) | null = null;
     let toolbarPositionRaf: number | null = null;
+    let handleResize: (() => void) | null = null;
 
     async function init() {
       if (!containerRef.current || editorRef.current) {
@@ -2304,7 +2305,7 @@ export function LayoutTemplateEditor({
           fromElement: false,
           storageManager: false,
           noticeOnUnload: false,
-          height: fullHeight ? '900px' : '78vh',
+          height: fullHeight ? '100%' : '78vh',
           panels: fullHeight ? { defaults: [] } : undefined,
           blockManager: fullHeight ? { appendTo: `#${layoutTargets.blocks}` } : undefined,
           styleManager: fullHeight ? { appendTo: `#${layoutTargets.styles}` } : undefined,
@@ -2467,12 +2468,15 @@ export function LayoutTemplateEditor({
           frameEl.setAttribute('scrolling', 'no');
         }
 
-        const bodyChildren = frameBody
-          ? Array.from(frameBody.children) as HTMLElement[]
-          : [];
+        const wrapperEl = frameBody
+          ? (frameBody.querySelector('#wrapper') || frameBody.firstElementChild) as HTMLElement | null
+          : null;
+        const bodyChildren = wrapperEl
+          ? (Array.from(wrapperEl.children) as HTMLElement[])
+          : (frameBody ? (Array.from(frameBody.children) as HTMLElement[]) : []);
         const childrenContentHeight = bodyChildren.reduce((maxHeight, child) => {
-          const childBottom = child.offsetTop + child.offsetHeight;
-          return Math.max(maxHeight, childBottom, child.scrollHeight);
+          const childBottom = child.offsetTop + Math.max(child.offsetHeight, child.scrollHeight);
+          return Math.max(maxHeight, childBottom);
         }, 0);
 
         // Measure only intrinsic content height. Using documentElement.scrollHeight here
@@ -2483,7 +2487,7 @@ export function LayoutTemplateEditor({
           childrenContentHeight,
           700,
         );
-        const targetHeight = Math.max(700, intrinsicContentHeight + 32);
+        const targetHeight = Math.max(700, intrinsicContentHeight + 100);
         const roundedTargetHeight = Math.ceil(targetHeight);
         const adjustedHeight = `${roundedTargetHeight}px`;
 
@@ -2503,6 +2507,17 @@ export function LayoutTemplateEditor({
               frameEl.style.height = adjustedHeight;
             }
           }
+        }
+
+        if (frameDoc && !frameDoc.documentElement.dataset.mjmlImageLoadHandlerAttached) {
+          frameDoc.documentElement.dataset.mjmlImageLoadHandlerAttached = 'true';
+          frameDoc.addEventListener(
+            'load',
+            () => {
+              ensureCanvasScroll();
+            },
+            true,
+          );
         }
 
         if (frameDoc && !frameDoc.getElementById('mjml-frame-ux-fixes')) {
@@ -2626,6 +2641,9 @@ export function LayoutTemplateEditor({
         if (canvasUpdateTimer) clearTimeout(canvasUpdateTimer);
         canvasUpdateTimer = setTimeout(ensureCanvasScroll, 250);
       };
+
+      handleResize = debouncedEnsureCanvasScroll;
+      window.addEventListener('resize', handleResize);
 
       editor.on('load', ensureCanvasScroll);
       editor.on('load', attachFrameToolbarListeners);
@@ -2833,6 +2851,9 @@ export function LayoutTemplateEditor({
       disposed = true;
       assetModalObserver?.disconnect();
       frameToolbarListenersCleanup?.();
+      if (handleResize) {
+        window.removeEventListener('resize', handleResize);
+      }
       if (toolbarPositionRaf !== null) {
         window.cancelAnimationFrame(toolbarPositionRaf);
       }
@@ -3080,9 +3101,10 @@ export function LayoutTemplateEditor({
             </aside>
 
           <main className="relative min-h-0 min-w-0 overflow-y-auto overflow-x-hidden bg-[#dfe3e7]">
-            <div className="min-h-full w-full px-4 py-4">
+            <div className="min-h-full w-full px-4 pt-4 pb-24">
               <div
                 className="min-h-[58vh] overflow-visible rounded-md border border-[#c9d4de] bg-transparent"
+                style={{ height: '700px' }}
                 ref={containerRef}
               />
             </div>

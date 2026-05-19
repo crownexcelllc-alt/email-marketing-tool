@@ -1,4 +1,7 @@
+import { Sparkles } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getTemplateCategoryLabel } from '@/lib/constants/template-categories';
 import type { MarketingTemplate } from '@/lib/types/template';
 
 interface TemplatesTableProps {
@@ -17,6 +20,15 @@ function LoadingCards() {
       ))}
     </div>
   );
+}
+
+function summarizeTemplateBody(html: string): string {
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 130);
 }
 
 function toPreviewDocument(html: string): string {
@@ -53,7 +65,7 @@ export function TemplatesTable({
           role="button"
           tabIndex={0}
           aria-label={`Open template ${template.name}`}
-          className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/70 p-3 transition hover:border-zinc-700 focus-visible:ring-2 focus-visible:ring-zinc-300 focus-visible:outline-none"
+          className="cursor-pointer overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/70 p-4 transition hover:border-zinc-700 focus-visible:ring-2 focus-visible:ring-zinc-300 focus-visible:outline-none"
           onClick={() => onCardClick(template)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' || event.key === ' ') {
@@ -62,10 +74,11 @@ export function TemplatesTable({
             }
           }}
         >
-          <h3 className="mb-3 line-clamp-2 text-sm font-semibold text-zinc-100">
-            {template.name}
-          </h3>
-          <div className="h-52 overflow-hidden rounded-md border border-zinc-800 bg-white">
+          <div className="mb-2 flex items-center gap-2 text-xs text-zinc-400">
+            <Sparkles className="h-3.5 w-3.5" />
+            <span>{getTemplateCategoryLabel(template.category)}</span>
+          </div>
+          <div className="mb-3 h-48 overflow-hidden rounded-md border border-zinc-800 bg-white">
             <div className="h-[200%] w-[200%] origin-top-left scale-50">
               <iframe
                 title={`${template.name} preview`}
@@ -74,6 +87,25 @@ export function TemplatesTable({
                 srcDoc={toPreviewDocument(template.body)}
               />
             </div>
+          </div>
+          <h3 className="line-clamp-1 text-sm font-semibold text-zinc-100">{template.name}</h3>
+          <p className="mt-2 text-xs text-zinc-500 line-clamp-1">
+            {template.subject || summarizeTemplateBody(template.body) || 'No subject line defined'}
+          </p>
+          <div className="mt-4 flex items-center justify-between gap-2">
+            <span className="text-xs uppercase tracking-wide text-zinc-500">
+              {template.editorType === 'layout' ? 'Layout editor' : 'Custom editor'}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={(event) => {
+                event.stopPropagation();
+                onCardClick(template);
+              }}
+            >
+              Preview
+            </Button>
           </div>
         </article>
       ))}
