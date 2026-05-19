@@ -119,7 +119,10 @@ export class CampaignSchedulerProcessor extends WorkerHost {
       campaign.stats.queuedRecipients = 0;
       campaign.status = CampaignStatus.COMPLETED;
       await this.campaignModel.updateOne(
-        { _id: campaignId },
+        {
+          _id: campaignId,
+          status: { $nin: [CampaignStatus.PAUSED, CampaignStatus.CANCELLED] },
+        },
         {
           $set: {
             status: CampaignStatus.COMPLETED,
