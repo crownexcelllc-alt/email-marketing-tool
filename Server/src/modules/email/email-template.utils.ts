@@ -97,9 +97,16 @@ const renderText = (
     const token = tokenRaw.trim();
     const value = resolvePath(context, token);
 
+    // Track which variables had no data (for diagnostics / preview warnings)
     if (value === undefined || value === null) {
       unresolved.add(token);
-      return full;
+      // Safe fallback: replace with empty string — NEVER leave raw {{variable}} in output
+      return '';
+    }
+
+    // Empty string is a valid resolved value — output it as-is
+    if (value === '') {
+      return '';
     }
 
     if (Array.isArray(value)) {
@@ -107,7 +114,8 @@ const renderText = (
     }
 
     if (typeof value === 'object') {
-      return JSON.stringify(value);
+      // Avoid leaking raw JSON objects into email content
+      return '';
     }
 
     return String(value);

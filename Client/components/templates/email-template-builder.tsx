@@ -42,13 +42,20 @@ const FORMATS = [
 ];
 
 const GUIDE_VARIABLES = [
+  { tag: '{{fullName}}', description: "Contact's full name (Contact Name)" },
   { tag: '{{firstName}}', description: "Contact's first name" },
   { tag: '{{lastName}}', description: "Contact's last name" },
-  { tag: '{{fullName}}', description: "Contact's full name" },
   { tag: '{{email}}', description: "Contact's email address" },
-  { tag: '{{phone}}', description: "Contact's phone number" },
-  { tag: '{{company}}', description: "Contact's company name" },
-  { tag: '{{category}}', description: "Contact's assigned category" },
+  { tag: '{{phone}}', description: "Contact's mobile number" },
+  { tag: '{{company}}', description: "Contact's company" },
+  { tag: '{{country}}', description: "Contact's country" },
+  { tag: '{{telephone}}', description: "Contact's telephone number" },
+  { tag: '{{additionalNumber}}', description: "Contact's additional phone number" },
+  { tag: '{{designation}}', description: "Contact's designation" },
+  { tag: '{{department}}', description: "Contact's department" },
+  { tag: '{{category}}', description: "Contact's category" },
+  { tag: '{{city}}', description: "Contact's city" },
+  { tag: '{{leadSource}}', description: "Contact's source (lead source)" },
   { tag: '{{labels}}', description: "Contact's labels (comma-separated)" },
   { tag: '{{campaign.name}}', description: "Name of the current campaign" },
 ];

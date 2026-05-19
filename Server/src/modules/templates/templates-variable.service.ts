@@ -51,13 +51,21 @@ export class TemplatesVariableService {
       (_match, rawToken: string) => {
         const token = this.normalizeVariable(rawToken);
         if (!token) {
-          return _match;
+          return '';
         }
 
         const value = this.resolveValue(sampleData, token);
+
+        // Track missing data for diagnostics — but always output clean text
         if (value === undefined || value === null) {
           unresolvedVariables.add(token);
-          return `{{${token}}}`;
+          // Safe fallback: empty string — NEVER leave raw {{variable}} in output
+          return '';
+        }
+
+        // Empty string is a valid resolved value
+        if (value === '') {
+          return '';
         }
 
         if (Array.isArray(value)) {
@@ -65,7 +73,8 @@ export class TemplatesVariableService {
         }
 
         if (typeof value === 'object') {
-          return JSON.stringify(value);
+          // Avoid leaking raw JSON objects into preview content
+          return '';
         }
 
         return String(value);

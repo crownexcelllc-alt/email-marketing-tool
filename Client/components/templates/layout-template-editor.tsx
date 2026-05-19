@@ -177,14 +177,24 @@ const HREF_ATTRIBUTE_TYPES = new Set(['mj-image', 'mj-button', 'mj-navbar-link',
 const SECTION_LINK_CHILD_TYPES = new Set(['mj-text', 'mj-image', 'mj-button', 'mj-navbar-link', 'mj-social-element']);
 const INLINE_TEXT_EDITABLE_TYPES = new Set(['mj-text', 'mj-button', 'mj-navbar-link', 'mj-social-element']);
 const RTE_VARIABLES = [
+  // Top-level contact fields
+  '{{fullName}}',
   '{{firstName}}',
   '{{lastName}}',
-  '{{fullName}}',
   '{{email}}',
-  '{{phone}}',
+  '{{phone}}',            // "Mobile" field in Add Contact form
   '{{company}}',
   '{{category}}',
   '{{labels}}',
+  // Custom fields from Add Contact form
+  '{{country}}',
+  '{{telephone}}',
+  '{{additionalNumber}}',
+  '{{designation}}',
+  '{{department}}',
+  '{{city}}',
+  '{{leadSource}}',       // "Source" field in Add Contact form
+  // Campaign
   '{{campaign.name}}',
 ];
 

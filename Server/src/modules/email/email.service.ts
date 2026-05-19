@@ -610,15 +610,26 @@ export class EmailService {
     }
 
     const contactData = {
+      // Top-level contact fields
       firstName: context.contact.firstName,
       lastName: context.contact.lastName,
       fullName: context.contact.fullName,
       email: context.contact.email,
-      phone: context.contact.phone,
+      phone: context.contact.phone,   // "Mobile" field in Add Contact form
       company: context.contact.company,
       category: context.contact.category,
       labels: context.contact.labels,
+      // Custom fields from Add Contact form
+      country: context.contact.customFields?.country ?? '',
+      telephone: context.contact.customFields?.telephone ?? '',
+      additionalNumber: context.contact.customFields?.additionalNumber ?? '',
+      designation: context.contact.customFields?.designation ?? '',
+      department: context.contact.customFields?.department ?? '',
+      city: context.contact.customFields?.city ?? '',
+      leadSource: context.contact.customFields?.leadSource ?? '',  // "Source" field in Add Contact form
+      // Raw customFields object (for advanced access)
       customFields: context.contact.customFields,
+      // Campaign context
       campaign: {
         id: context.campaign._id.toString(),
         name: context.campaign.name,

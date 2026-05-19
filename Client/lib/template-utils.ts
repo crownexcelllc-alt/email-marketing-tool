@@ -1,12 +1,24 @@
 const TEMPLATE_VARIABLE_REGEX = /{{\s*([a-zA-Z0-9_.-]+)\s*}}/g;
 
 const DEFAULT_SAMPLE_VALUES: Record<string, string> = {
-  name: 'Alex Morgan',
+  // Top-level contact fields
+  fullName: 'Alex Morgan',
   firstName: 'Alex',
   lastName: 'Morgan',
-  company: 'Acme Inc',
   email: 'alex@example.com',
-  phone: '+1 415 555 0182',
+  phone: '+1 415 555 0182',    // "Mobile" field in Add Contact form
+  company: 'Acme Inc',
+  category: 'vip',
+  labels: 'newsletter, beta',
+  // Custom fields from Add Contact form
+  country: 'Pakistan',
+  telephone: '+1 415 555 0122',
+  additionalNumber: '+1 415 555 0199',
+  designation: 'Manager',
+  department: 'Marketing',
+  city: 'Lahore',
+  leadSource: 'Website Registration',  // "Source" field in Add Contact form
+  'campaign.name': 'Monthly Newsletter',
 };
 
 export function extractTemplateVariables(input: string): string[] {

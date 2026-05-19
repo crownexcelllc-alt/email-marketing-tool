@@ -451,17 +451,36 @@ export class TemplatesService {
     dto: PreviewTemplateDto,
   ): Promise<Record<string, unknown>> {
     const defaultSample: Record<string, unknown> = {
+      // Top-level contact fields
       firstName: 'Alex',
       lastName: 'Johnson',
       fullName: 'Alex Johnson',
       email: 'alex@example.com',
-      phone: '+15550001111',
+      phone: '+15550001111',      // "Mobile" field in Add Contact form
       company: 'Acme Inc',
       category: 'vip',
       labels: ['beta'],
+      // Custom fields from Add Contact form
+      country: 'Pakistan',
+      telephone: '+15550003333',
+      additionalNumber: '+15550004444',
+      designation: 'Manager',
+      department: 'Marketing',
+      city: 'Lahore',
+      leadSource: 'Website Registration',  // "Source" field in Add Contact form
       customFields: {
+        country: 'Pakistan',
+        telephone: '+15550003333',
+        additionalNumber: '+15550004444',
+        designation: 'Manager',
+        department: 'Marketing',
         city: 'Lahore',
-        plan: 'pro',
+        leadSource: 'Website Registration',
+      },
+      // Campaign context for template previews
+      campaign: {
+        id: 'sample-campaign-id',
+        name: 'Sample Campaign',
       },
     };
 
@@ -481,14 +500,23 @@ export class TemplatesService {
       }
 
       contactSample = {
+        // Top-level contact fields
         firstName: contact.firstName,
         lastName: contact.lastName,
         fullName: contact.fullName,
         email: contact.email,
-        phone: contact.phone,
+        phone: contact.phone,   // "Mobile" field in Add Contact form
         company: contact.company,
         category: contact.category,
         labels: contact.labels,
+        // Custom fields from Add Contact form
+        country: contact.customFields?.country ?? '',
+        telephone: contact.customFields?.telephone ?? '',
+        additionalNumber: contact.customFields?.additionalNumber ?? '',
+        designation: contact.customFields?.designation ?? '',
+        department: contact.customFields?.department ?? '',
+        city: contact.customFields?.city ?? '',
+        leadSource: contact.customFields?.leadSource ?? '',  // "Source" field in Add Contact form
         customFields: contact.customFields,
       };
     }
@@ -502,6 +530,13 @@ export class TemplatesService {
           phone: dto.sampleContact.phone,
           company: dto.sampleContact.company,
           customFields: dto.sampleContact.customFields,
+          country: dto.sampleContact.customFields?.country ?? '',
+          telephone: dto.sampleContact.customFields?.telephone ?? '',
+          additionalNumber: dto.sampleContact.customFields?.additionalNumber ?? '',
+          designation: dto.sampleContact.customFields?.designation ?? '',
+          department: dto.sampleContact.customFields?.department ?? '',
+          city: dto.sampleContact.customFields?.city ?? '',
+          leadSource: dto.sampleContact.customFields?.leadSource ?? '',
         }
       : {};
 
