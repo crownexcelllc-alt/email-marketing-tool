@@ -95,7 +95,7 @@ export default function TemplateDetailsPage() {
     try {
       await deleteTemplate(template.id);
       toast.success('Template deleted successfully.');
-      router.push('/dashboard/templates');
+      router.push('/dashboard/templates?tab=personal');
     } catch (error: unknown) {
       toast.error(getErrorMessage(error));
     } finally {
@@ -111,7 +111,7 @@ export default function TemplateDetailsPage() {
             type="button"
             variant="outline"
             className="border-zinc-300 text-zinc-900 hover:bg-zinc-100"
-            onClick={() => router.push('/dashboard/templates')}
+            onClick={() => router.push('/dashboard/templates?tab=personal')}
           >
             <ArrowLeft className="mr-1 h-4 w-4" />
             Back

@@ -103,6 +103,7 @@ function normalizeTemplate(input: unknown): MarketingTemplate {
     subject,
     body,
     variables,
+    isCopy: typeof record.isCopy === 'boolean' ? record.isCopy : false,
     status: getString(record, ['status']),
     createdAt: getString(record, ['createdAt']),
     updatedAt: getString(record, ['updatedAt']),
@@ -121,7 +122,7 @@ function parsePagination(record: Record<string, unknown>, fallbackLimit: number)
 }
 
 function buildPayload(
-  values: TemplateFormValues,
+  values: TemplateFormValues & { isCopy?: boolean },
   options: { includeChannelType?: boolean } = {},
 ): Record<string, unknown> {
   const includeChannelType = options.includeChannelType ?? true;
@@ -143,6 +144,7 @@ function buildPayload(
       mjmlBody: values.editorType === 'layout' ? values.mjmlBody ?? null : null,
       variables,
       status: values.status || 'active',
+      isCopy: values.isCopy ?? false,
     };
   }
 
@@ -160,6 +162,7 @@ function buildPayload(
     headerParams: [],
     buttonParams: [],
     status: values.status || 'active',
+    isCopy: values.isCopy ?? false,
   };
 }
 
@@ -238,7 +241,7 @@ export async function getTemplateById(id: string): Promise<MarketingTemplate> {
   return normalizeTemplate(payload);
 }
 
-export async function createTemplate(values: TemplateFormValues): Promise<MarketingTemplate> {
+export async function createTemplate(values: TemplateFormValues & { isCopy?: boolean }): Promise<MarketingTemplate> {
   const payload = await apiRequest<unknown, Record<string, unknown>>({
     method: 'POST',
     url: '/templates',
@@ -248,7 +251,10 @@ export async function createTemplate(values: TemplateFormValues): Promise<Market
   return normalizeTemplate(payload);
 }
 
-export async function updateTemplate(id: string, values: TemplateFormValues): Promise<MarketingTemplate> {
+export async function updateTemplate(
+  id: string,
+  values: TemplateFormValues & { isCopy?: boolean },
+): Promise<MarketingTemplate> {
   const payload = await apiRequest<unknown, Record<string, unknown>>({
     method: 'PATCH',
     url: `/templates/${id}`,

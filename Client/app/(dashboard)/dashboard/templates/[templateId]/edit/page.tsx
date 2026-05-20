@@ -171,7 +171,7 @@ export default function EditTemplatePage() {
       await updateTemplate(template.id, payload);
       form.reset(pendingSaveValues); // Clear dirty state
       toast.success('Template updated successfully.');
-      router.push('/dashboard/templates');
+      router.push('/dashboard/templates?tab=personal');
     } catch (error: unknown) {
       toast.error(getErrorMessage(error));
     } finally {
@@ -188,11 +188,12 @@ export default function EditTemplatePage() {
       const payload = {
         ...pendingSaveValues,
         subject: pendingSaveValues.subject === template.name ? pendingSaveValues.name : pendingSaveValues.subject,
+        isCopy: true,
       };
       const newTemplate = await createTemplate(payload);
       form.reset(pendingSaveValues); // Clear dirty state
       toast.success(`Template copy "${newTemplate.name}" created successfully.`);
-      router.push('/dashboard/templates');
+      router.push('/dashboard/templates?tab=personal');
     } catch (error: unknown) {
       toast.error(getErrorMessage(error));
     } finally {

@@ -149,7 +149,7 @@ export default function TemplatePreviewPage() {
       await createTemplate(payload);
       clearLibraryTemplateDraft(templateId);
       toast.success('Template saved successfully.');
-      router.push('/dashboard/templates');
+      router.push('/dashboard/templates?tab=personal');
     } catch (err: unknown) {
       toast.error(getErrorMessage(err));
     } finally {

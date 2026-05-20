@@ -103,6 +103,7 @@ export class TemplatesService {
       variables: this.buildVariables(dto, undefined),
       email: null,
       whatsapp: null,
+      isCopy: dto.isCopy ?? false,
     });
 
     if (dto.channelType === TemplateChannelType.EMAIL) {
@@ -356,6 +357,10 @@ export class TemplatesService {
 
     if (dto.layoutPreset !== undefined) {
       template.layoutPreset = dto.layoutPreset;
+    }
+
+    if (dto.isCopy !== undefined) {
+      template.isCopy = dto.isCopy;
     }
 
     if (template.channelType === TemplateChannelType.EMAIL) {
@@ -752,6 +757,7 @@ export class TemplatesService {
       editorType: template.editorType ?? TemplateEditorType.HTML,
       layoutPreset: template.layoutPreset ?? null,
       variables: [...template.variables],
+      isCopy: template.isCopy ?? false,
       createdAt: template.createdAt,
       updatedAt: template.updatedAt,
     };

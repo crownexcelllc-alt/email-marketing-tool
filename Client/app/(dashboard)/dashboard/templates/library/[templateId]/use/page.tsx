@@ -314,7 +314,7 @@ export default function UseTemplatePage() {
       await createTemplate(payload);
       clearLibraryTemplateDraft(templateId);
       toast.success('Template created successfully.');
-      router.push('/dashboard/templates');
+      router.push('/dashboard/templates?tab=personal');
     } catch (err: unknown) {
       const message = getErrorMessage(err);
       setError(message);
@@ -351,7 +351,7 @@ export default function UseTemplatePage() {
       await createTemplate(payload);
       clearLibraryTemplateDraft(templateId);
       toast.success('Changes auto-saved to Personal Templates.');
-      router.push('/dashboard/templates');
+      router.push('/dashboard/templates?tab=personal');
     } catch (err: unknown) {
       const message = getErrorMessage(err);
       setError(message);

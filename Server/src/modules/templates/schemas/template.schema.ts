@@ -89,6 +89,9 @@ export class Template {
   @Prop({ type: WhatsAppTemplateContent, default: null })
   whatsapp!: WhatsAppTemplateContent | null;
 
+  @Prop({ type: Boolean, default: false })
+  isCopy?: boolean;
+
   createdAt?: Date;
   updatedAt?: Date;
 }

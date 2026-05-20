@@ -1,6 +1,7 @@
 import { Transform } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsEnum,
   IsObject,
   IsOptional,
@@ -39,6 +40,10 @@ export class CreateTemplateDto {
   @IsOptional()
   @IsEnum(TemplateVisibility)
   readonly visibility?: TemplateVisibility;
+
+  @IsOptional()
+  @IsBoolean()
+  readonly isCopy?: boolean;
 
   @IsOptional()
   @IsEnum(TemplateEditorType)

@@ -2,7 +2,7 @@
 
 import { Code2, FolderKanban, LayoutTemplate, PlusCircle } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { TemplateLibraryGrid } from '@/components/templates/template-library-grid';
 import { TemplatesFilters } from '@/components/templates/templates-filters';
@@ -158,7 +158,20 @@ function LayoutPresetThumbnail({ preset }: { preset: PrebuiltLayoutPreset }) {
 
 export default function TemplatesPage() {
   const router = useRouter();
-  const [activeSection, setActiveSection] = useState<TemplatesSection>('library');
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const [activeSection, setActiveSection] = useState<TemplatesSection>(
+    tabParam === 'personal' ? 'personal' : 'library'
+  );
+
+  useEffect(() => {
+    if (tabParam === 'personal') {
+      setActiveSection('personal');
+    } else if (tabParam === 'library') {
+      setActiveSection('library');
+    }
+  }, [tabParam]);
+
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeLibraryCategory, setActiveLibraryCategory] = useState('all');

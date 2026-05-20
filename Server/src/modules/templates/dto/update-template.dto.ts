@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsArray, IsEnum, IsObject, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsEnum, IsObject, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import {
   TemplateCategory,
   TemplateEditorType,
@@ -27,6 +27,10 @@ export class UpdateTemplateDto {
   @IsOptional()
   @IsEnum(TemplateVisibility)
   readonly visibility?: TemplateVisibility;
+
+  @IsOptional()
+  @IsBoolean()
+  readonly isCopy?: boolean;
 
   @IsOptional()
   @IsEnum(TemplateEditorType)

@@ -74,9 +74,16 @@ export function TemplatesTable({
             }
           }}
         >
-          <div className="mb-2 flex items-center gap-2 text-xs text-zinc-400">
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>{getTemplateCategoryLabel(template.category)}</span>
+          <div className="mb-2 flex items-center justify-between text-xs text-zinc-400">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>{getTemplateCategoryLabel(template.category)}</span>
+            </div>
+            {template.isCopy && (
+              <span className="rounded bg-cyan-950/40 border border-cyan-800/60 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-400">
+                Copy
+              </span>
+            )}
           </div>
           <div className="mb-3 h-48 overflow-hidden rounded-md border border-zinc-800 bg-white">
             <div className="h-[200%] w-[200%] origin-top-left scale-50">

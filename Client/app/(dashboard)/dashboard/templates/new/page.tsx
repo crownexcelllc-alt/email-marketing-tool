@@ -273,7 +273,7 @@ export default function NewTemplatePage() {
         markDraftSaved();
       }
     }
-    router.push('/dashboard/templates');
+    router.push('/dashboard/templates?tab=personal');
   };
 
   const handleFinalSave = async () => {
@@ -299,7 +299,7 @@ export default function NewTemplatePage() {
       await createTemplate(payload);
       clearNewTemplateDraft();
       toast.success('Template created successfully.');
-      router.push('/dashboard/templates');
+      router.push('/dashboard/templates?tab=personal');
     } catch (error: unknown) {
       toast.error(getErrorMessage(error));
     } finally {
@@ -330,7 +330,7 @@ export default function NewTemplatePage() {
       };
       await createTemplate(payload);
       toast.success('Template created successfully.');
-      router.push('/dashboard/templates');
+      router.push('/dashboard/templates?tab=personal');
     } catch (error: unknown) {
       toast.error(getErrorMessage(error));
     } finally {
@@ -349,7 +349,7 @@ export default function NewTemplatePage() {
     form.reset(values);
     markDraftSaved();
     setIsHtmlLeaveConfirmOpen(false);
-    router.push('/dashboard/templates');
+    router.push('/dashboard/templates?tab=personal');
   };
 
   const handleHtmlBack = () => {

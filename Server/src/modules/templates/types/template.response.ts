@@ -18,6 +18,7 @@ interface TemplateBaseResponse {
   editorType: TemplateEditorType;
   layoutPreset: TemplateLayoutPreset | null;
   variables: string[];
+  isCopy?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }

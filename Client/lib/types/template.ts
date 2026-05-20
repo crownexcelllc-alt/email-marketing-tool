@@ -43,6 +43,7 @@ export interface MarketingTemplate {
   body: string;
   variables: string[];
   status?: string;
+  isCopy?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
