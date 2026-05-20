@@ -99,10 +99,6 @@ export function CsvPreviewDashboard({
   const PAGE_SIZE = 20;
 
   const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [isAddingCategory, setIsAddingCategory] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState('');
-
-  const finalCategory = isAddingCategory ? newCategoryName.trim() : selectedCategory;
 
   // Stat cards with high-contrast colors
   const cards: StatCard[] = [
@@ -218,7 +214,7 @@ export function CsvPreviewDashboard({
           <p className="text-sm font-black text-zinc-400 tracking-tight uppercase mb-1">
             Step 2: Review & Commit
           </p>
-          <p className="text-lg font-black text-white tracking-tight">
+          <p className="text-lg font-black text-black tracking-tight">
             Ready to import{' '}
             <span className="text-emerald-400">{importableCount}</span> contacts
           </p>
@@ -236,55 +232,21 @@ export function CsvPreviewDashboard({
             <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest leading-none">
               Assign to Category
             </label>
-            {!isAddingCategory ? (
-              <select
-                value={selectedCategory}
-                onChange={(e) => {
-                  if (e.target.value === 'NEW_CATEGORY') {
-                    setIsAddingCategory(true);
-                    setSelectedCategory('');
-                  } else {
-                    setSelectedCategory(e.target.value);
-                  }
-                }}
-                disabled={isImporting}
-                className="h-11 rounded-2xl border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs font-bold text-zinc-200 focus:border-zinc-700 focus:ring-0 w-full disabled:opacity-50"
-              >
-                <option value="">No Category</option>
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-                <option value="NEW_CATEGORY" className="text-emerald-400 font-bold">
-                  + Create New Category...
+            <select
+              value={selectedCategory}
+              onChange={(e) => {
+                setSelectedCategory(e.target.value);
+              }}
+              disabled={isImporting}
+              className="h-11 rounded-2xl border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs font-bold text-zinc-200 focus:border-zinc-700 focus:ring-0 w-full disabled:opacity-50"
+            >
+              <option value="">No Category</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
                 </option>
-              </select>
-            ) : (
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="text"
-                  placeholder="New category name"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  disabled={isImporting}
-                  className="h-11 rounded-2xl border border-zinc-800 bg-zinc-950 px-4 text-xs font-bold text-zinc-200 placeholder-zinc-600 focus:border-zinc-700 focus:ring-0 flex-1 disabled:opacity-50"
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAddingCategory(false);
-                    setNewCategoryName('');
-                  }}
-                  disabled={isImporting}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-950 text-zinc-400 hover:bg-zinc-800 hover:text-white transition disabled:opacity-50"
-                  title="Cancel new category"
-                >
-                  ✕
-                </button>
-              </div>
-            )}
+              ))}
+            </select>
           </div>
 
           <div className="flex gap-4 items-center">
@@ -298,7 +260,7 @@ export function CsvPreviewDashboard({
             </button>
             <button
               type="button"
-              onClick={() => onStartImport(finalCategory || undefined)}
+              onClick={() => onStartImport(selectedCategory || undefined)}
               disabled={isImporting || importableCount === 0}
               className="flex h-11 items-center gap-2 rounded-2xl bg-emerald-600 hover:bg-emerald-600 px-8 text-sm font-black text-white transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm"
             >

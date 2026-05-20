@@ -165,25 +165,25 @@ function classifyRow(
 
   if (isBlank) {
     status = 'skipped';
-    reason = 'Row is empty — all key fields are blank';
+    reason = 'Row is empty';
   } else if (!hasEmail) {
     status = 'rejected';
-    reason = 'Email is required — contacts must have an email address';
+    reason = 'Email is required';
   } else if (!hasName) {
     status = 'rejected';
-    reason = 'Name is required — contacts must have a name';
+    reason = 'Name is required';
   } else if (isDuplicate) {
     status = 'duplicate';
-    reason = 'Duplicate email found in this file';
+    reason = 'Duplicate email';
   } else if (isServerDuplicate) {
     status = 'duplicate';
-    reason = 'Contact already exists in your workspace';
+    reason = 'Contact already exists';
   } else {
     // Both Name and Email are present
     const isMissingOptional = !phone || !company || !category;
     if (isMissingOptional) {
       status = 'missing_fields';
-      reason = 'Some optional fields are missing (Mobile, Company, or Category)';
+      reason = 'Missing optional fields';
     } else {
       status = 'valid';
       reason = 'Ready to import';
@@ -192,7 +192,7 @@ function classifyRow(
 
   return {
     rowNumber,
-    name: name || company || email || phone || '—',
+    name: name,
     email,
     phone,
     company,
