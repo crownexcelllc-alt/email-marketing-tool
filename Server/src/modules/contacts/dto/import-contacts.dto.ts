@@ -1,4 +1,4 @@
-﻿import { IsBoolean, IsEnum, IsOptional } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
 import { ContactSource } from '../constants/contact.enums';
 
 export class ImportContactsDto {
@@ -9,4 +9,8 @@ export class ImportContactsDto {
   @IsOptional()
   @IsBoolean()
   readonly queueOnly?: boolean;
+
+  @IsOptional()
+  @IsString()
+  readonly category?: string;
 }

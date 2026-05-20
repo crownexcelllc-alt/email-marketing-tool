@@ -318,9 +318,12 @@ export async function deleteContact(id: string): Promise<void> {
   });
 }
 
-export async function importContacts(file: File): Promise<ContactsImportResult> {
+export async function importContacts(file: File, category?: string): Promise<ContactsImportResult> {
   const formData = new FormData();
   formData.append('file', file);
+  if (category) {
+    formData.append('category', category);
+  }
 
   const payload = await apiRequest<unknown, FormData>({
     method: 'POST',

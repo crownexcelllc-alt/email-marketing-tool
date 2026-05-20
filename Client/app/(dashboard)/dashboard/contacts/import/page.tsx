@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { CsvPreviewDashboard } from '@/components/contacts/csv-preview-dashboard';
 import { ImportResultsView } from '@/components/contacts/import-results-view';
-import { importContacts } from '@/lib/api/contacts';
+import { importContacts, getContactCategorySummary } from '@/lib/api/contacts';
 import { HttpClientError } from '@/lib/api/errors';
 import { consumePendingImport, clearPendingImport } from '@/lib/utils/csv-import-store';
 import type { ContactsImportResult } from '@/lib/types/contact';
@@ -20,6 +20,19 @@ export default function ImportPreviewPage() {
   const [importResult, setImportResult] = useState<ContactsImportResult | null>(null);
   const [showResults, setShowResults] = useState(false);
   const fileRef = useRef<File | null>(null);
+  const [categories, setCategories] = useState<string[]>([]);
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const summary = await getContactCategorySummary();
+        setCategories(summary.categories.map((c) => c.category));
+      } catch (error) {
+        console.error('Failed to load categories:', error);
+      }
+    };
+    void loadCategories();
+  }, []);
 
   useEffect(() => {
     const { file, result: previewResult, fileName: name } = consumePendingImport();
@@ -39,7 +52,7 @@ export default function ImportPreviewPage() {
     router.push('/dashboard/contacts');
   };
 
-  const handleStartImport = async () => {
+  const handleStartImport = async (category?: string) => {
     const file = fileRef.current;
     if (!file) {
       toast.error('No file found. Please re-select your CSV and try again.');
@@ -50,7 +63,7 @@ export default function ImportPreviewPage() {
 
     toast.info('Starting import — please wait while the server processes the data...');
     try {
-      const completed = await importContacts(file);
+      const completed = await importContacts(file, category);
       clearPendingImport();
 
       // Store the result and show the Results button/modal — don't auto-navigate
@@ -153,7 +166,8 @@ export default function ImportPreviewPage() {
           fileName={fileName}
           result={result}
           isImporting={isImporting}
-          onStartImport={() => void handleStartImport()}
+          categories={categories}
+          onStartImport={(category) => void handleStartImport(category)}
           onCancel={handleCancel}
         />
       </div>

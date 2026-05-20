@@ -59,7 +59,8 @@ interface CsvPreviewDashboardProps {
   fileName: string;
   result: CsvPreviewResult;
   isImporting: boolean;
-  onStartImport: () => void;
+  categories: string[];
+  onStartImport: (category?: string) => void;
   onCancel: () => void;
 }
 
@@ -87,6 +88,7 @@ export function CsvPreviewDashboard({
   fileName,
   result,
   isImporting,
+  categories,
   onStartImport,
   onCancel,
 }: CsvPreviewDashboardProps) {
@@ -95,6 +97,12 @@ export function CsvPreviewDashboard({
   const [sortKey, setSortKey] = useState<SortKey>('rowNumber');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const PAGE_SIZE = 20;
+
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+
+  const finalCategory = isAddingCategory ? newCategoryName.trim() : selectedCategory;
 
   // Stat cards with high-contrast colors
   const cards: StatCard[] = [
@@ -205,8 +213,8 @@ export function CsvPreviewDashboard({
     <div className="flex flex-col gap-6">
 
       {/* ── Action bar ── */}
-      <div className="relative z-20 flex flex-col gap-4 rounded-3xl border border-zinc-800 bg-zinc-900 px-8 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between mb-2">
-        <div>
+      <div className="relative z-20 flex flex-col gap-6 rounded-3xl border border-zinc-800 bg-zinc-900 px-8 py-5 shadow-sm xl:flex-row xl:items-center xl:justify-between mb-2">
+        <div className="flex-1">
           <p className="text-sm font-black text-zinc-400 tracking-tight uppercase mb-1">
             Step 2: Review & Commit
           </p>
@@ -221,33 +229,92 @@ export function CsvPreviewDashboard({
             {result.counts.skipped === 0 && result.counts.duplicate === 0 && result.counts.rejected === 0 && 'All detected rows will be imported.'}
           </p>
         </div>
-        <div className="flex gap-4">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isImporting}
-            className="rounded-2xl border border-zinc-700 bg-transparent px-6 py-3 text-sm font-black text-zinc-300 transition hover:bg-zinc-800 hover:text-white hover:border-zinc-500 disabled:opacity-30"
-          >
-            ✕ Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onStartImport}
-            disabled={isImporting || importableCount === 0}
-            className="flex items-center gap-2 rounded-2xl bg-emerald-600 px-8 py-3 text-sm font-black text-white transition hover:bg-emerald-500 hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 shadow-xl shadow-emerald-900/20"
-          >
-            {isImporting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                IMPORTING...
-              </>
+
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+          {/* Category selection */}
+          <div className="flex flex-col gap-1.5 min-w-[200px]">
+            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest leading-none">
+              Assign to Category
+            </label>
+            {!isAddingCategory ? (
+              <select
+                value={selectedCategory}
+                onChange={(e) => {
+                  if (e.target.value === 'NEW_CATEGORY') {
+                    setIsAddingCategory(true);
+                    setSelectedCategory('');
+                  } else {
+                    setSelectedCategory(e.target.value);
+                  }
+                }}
+                disabled={isImporting}
+                className="h-11 rounded-2xl border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs font-bold text-zinc-200 focus:border-zinc-700 focus:ring-0 w-full disabled:opacity-50"
+              >
+                <option value="">No Category</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+                <option value="NEW_CATEGORY" className="text-emerald-400 font-bold">
+                  + Create New Category...
+                </option>
+              </select>
             ) : (
-              <>
-                <CheckCircle2 className="h-4 w-4" />
-                START IMPORT
-              </>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  placeholder="New category name"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  disabled={isImporting}
+                  className="h-11 rounded-2xl border border-zinc-800 bg-zinc-950 px-4 text-xs font-bold text-zinc-200 placeholder-zinc-600 focus:border-zinc-700 focus:ring-0 flex-1 disabled:opacity-50"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingCategory(false);
+                    setNewCategoryName('');
+                  }}
+                  disabled={isImporting}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-950 text-zinc-400 hover:bg-zinc-800 hover:text-white transition disabled:opacity-50"
+                  title="Cancel new category"
+                >
+                  ✕
+                </button>
+              </div>
             )}
-          </button>
+          </div>
+
+          <div className="flex gap-4 items-center">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={isImporting}
+              className="h-11 rounded-2xl border border-zinc-700 bg-transparent px-6 text-sm font-black text-zinc-300 transition hover:bg-zinc-800 hover:text-white hover:border-zinc-500 disabled:opacity-30"
+            >
+              ✕ Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => onStartImport(finalCategory || undefined)}
+              disabled={isImporting || importableCount === 0}
+              className="flex h-11 items-center gap-2 rounded-2xl bg-emerald-600 hover:bg-emerald-600 px-8 text-sm font-black text-white transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm"
+            >
+              {isImporting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  IMPORTING...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4" />
+                  START IMPORT
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 

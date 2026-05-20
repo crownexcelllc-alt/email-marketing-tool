@@ -636,7 +636,7 @@ export class ContactsService {
 
     for (const row of parsed.rows) {
       try {
-        const result = await this.createFromImportRow(workspaceId, row);
+        const result = await this.createFromImportRow(workspaceId, row, dto.category);
         if (result === 'created') {
           created += 1;
         } else {
@@ -695,6 +695,7 @@ export class ContactsService {
   private async createFromImportRow(
     workspaceId: string,
     row: ParsedContactCsvRow,
+    overrideCategory?: string,
   ): Promise<'created' | 'skipped'> {
     const payload = this.buildContactPayload({
       firstName: row.firstName,
@@ -703,7 +704,7 @@ export class ContactsService {
       email: row.email,
       phone: row.phone,
       company: row.company,
-      category: row.category,
+      category: overrideCategory || row.category,
       labels: row.labels,
       customFields: row.customFields,
       notes: row.notes,
