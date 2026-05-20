@@ -32,7 +32,7 @@ export function TemplatePreviewPanel({ type, subject, body }: TemplatePreviewPan
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Preview ({type})</p>
-          <p className="mt-1 text-sm text-slate-700">{previewSubject}</p>
+          <p className="mt-1 text-sm text-slate-700"><span className="font-semibold text-slate-500">Subject:</span> {previewSubject}</p>
         </div>
         <div className="flex max-w-[55%] flex-wrap justify-end gap-1">
           {variables.map((variable) => (

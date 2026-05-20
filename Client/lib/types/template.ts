@@ -44,6 +44,8 @@ export interface MarketingTemplate {
   variables: string[];
   status?: string;
   isCopy?: boolean;
+  copiedFrom?: string | null;
+  copyNumber?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }

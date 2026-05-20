@@ -80,8 +80,8 @@ export function TemplatesTable({
               <span>{getTemplateCategoryLabel(template.category)}</span>
             </div>
             {template.isCopy && (
-              <span className="rounded bg-cyan-950/40 border border-cyan-800/60 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-400">
-                Copy
+              <span className="inline-flex items-center rounded-full bg-gradient-to-r from-violet-400 to-indigo-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-black shadow-sm shadow-violet-500/20 ring-1 ring-violet-500/30">
+                Copy{template.copyNumber ? ` ${template.copyNumber}` : ''}
               </span>
             )}
           </div>
@@ -96,8 +96,9 @@ export function TemplatesTable({
             </div>
           </div>
           <h3 className="line-clamp-1 text-sm font-semibold text-zinc-100">{template.name}</h3>
-          <p className="mt-2 text-xs text-zinc-500 line-clamp-1">
-            {template.subject || summarizeTemplateBody(template.body) || 'No subject line defined'}
+          <p className="mt-1 text-xs text-zinc-500 line-clamp-1">
+            <span className="font-semibold text-zinc-400">Subject:</span>{' '}
+            {template.subject || 'No subject line defined'}
           </p>
           <div className="mt-4 flex items-center justify-between gap-2">
             <span className="text-xs uppercase tracking-wide text-zinc-500">

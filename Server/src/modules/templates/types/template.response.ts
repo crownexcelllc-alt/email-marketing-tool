@@ -19,6 +19,8 @@ interface TemplateBaseResponse {
   layoutPreset: TemplateLayoutPreset | null;
   variables: string[];
   isCopy?: boolean;
+  copiedFrom?: string | null;
+  copyNumber?: number | null;
   createdAt?: Date;
   updatedAt?: Date;
 }

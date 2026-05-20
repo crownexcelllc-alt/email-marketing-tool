@@ -42,6 +42,11 @@ export function TemplateLibraryPreviewDialog({
           <DialogTitle>{item.name}</DialogTitle>
           <DialogDescription>
             {getTemplateCategoryLabel(item.category)} template
+            {item.subject ? (
+              <span className="mt-1 block text-xs text-zinc-400">
+                <span className="font-semibold">Subject:</span> {item.subject}
+              </span>
+            ) : null}
           </DialogDescription>
         </DialogHeader>
 

@@ -189,6 +189,7 @@ export default function EditTemplatePage() {
         ...pendingSaveValues,
         subject: pendingSaveValues.subject === template.name ? pendingSaveValues.name : pendingSaveValues.subject,
         isCopy: true,
+        copiedFrom: template.copiedFrom ?? template.id,
       };
       const newTemplate = await createTemplate(payload);
       form.reset(pendingSaveValues); // Clear dirty state

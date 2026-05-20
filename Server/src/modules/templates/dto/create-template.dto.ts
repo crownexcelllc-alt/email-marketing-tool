@@ -46,6 +46,13 @@ export class CreateTemplateDto {
   readonly isCopy?: boolean;
 
   @IsOptional()
+  @IsString()
+  readonly copiedFrom?: string;
+
+  @IsOptional()
+  readonly copyNumber?: number;
+
+  @IsOptional()
   @IsEnum(TemplateEditorType)
   readonly editorType?: TemplateEditorType;
 

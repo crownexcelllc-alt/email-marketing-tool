@@ -104,6 +104,8 @@ function normalizeTemplate(input: unknown): MarketingTemplate {
     body,
     variables,
     isCopy: typeof record.isCopy === 'boolean' ? record.isCopy : false,
+    copiedFrom: getString(record, ['copiedFrom']) ?? null,
+    copyNumber: typeof record.copyNumber === 'number' ? record.copyNumber : null,
     status: getString(record, ['status']),
     createdAt: getString(record, ['createdAt']),
     updatedAt: getString(record, ['updatedAt']),
@@ -122,7 +124,7 @@ function parsePagination(record: Record<string, unknown>, fallbackLimit: number)
 }
 
 function buildPayload(
-  values: TemplateFormValues & { isCopy?: boolean },
+  values: TemplateFormValues & { isCopy?: boolean; copiedFrom?: string },
   options: { includeChannelType?: boolean } = {},
 ): Record<string, unknown> {
   const includeChannelType = options.includeChannelType ?? true;
@@ -145,6 +147,7 @@ function buildPayload(
       variables,
       status: values.status || 'active',
       isCopy: values.isCopy ?? false,
+      copiedFrom: values.copiedFrom ?? undefined,
     };
   }
 
@@ -163,6 +166,7 @@ function buildPayload(
     buttonParams: [],
     status: values.status || 'active',
     isCopy: values.isCopy ?? false,
+    copiedFrom: values.copiedFrom ?? undefined,
   };
 }
 
@@ -241,7 +245,7 @@ export async function getTemplateById(id: string): Promise<MarketingTemplate> {
   return normalizeTemplate(payload);
 }
 
-export async function createTemplate(values: TemplateFormValues & { isCopy?: boolean }): Promise<MarketingTemplate> {
+export async function createTemplate(values: TemplateFormValues & { isCopy?: boolean; copiedFrom?: string }): Promise<MarketingTemplate> {
   const payload = await apiRequest<unknown, Record<string, unknown>>({
     method: 'POST',
     url: '/templates',
@@ -253,7 +257,7 @@ export async function createTemplate(values: TemplateFormValues & { isCopy?: boo
 
 export async function updateTemplate(
   id: string,
-  values: TemplateFormValues & { isCopy?: boolean },
+  values: TemplateFormValues & { isCopy?: boolean; copiedFrom?: string },
 ): Promise<MarketingTemplate> {
   const payload = await apiRequest<unknown, Record<string, unknown>>({
     method: 'PATCH',

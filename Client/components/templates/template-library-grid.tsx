@@ -86,7 +86,11 @@ export function TemplateLibraryGrid({
             )}
           </div>
           <h3 className="line-clamp-1 text-sm font-semibold text-zinc-100">{item.name}</h3>
-          <p className="mt-2 text-xs text-zinc-500">{toSummary(item)}</p>
+          <p className="mt-1 text-xs text-zinc-500 line-clamp-1">
+            <span className="font-semibold text-zinc-400">Subject:</span>{' '}
+            {item.subject || 'No subject'}
+          </p>
+          <p className="mt-1 text-xs text-zinc-500">{toSummary(item)}</p>
           <div className="mt-4 flex items-center justify-between gap-2">
             <span className="text-xs uppercase tracking-wide text-zinc-500">
               {item.editorType === 'layout' ? 'Layout editor' : 'Custom editor'}

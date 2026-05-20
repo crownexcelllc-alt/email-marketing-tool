@@ -91,6 +91,22 @@ export class TemplatesService {
   async create(dto: CreateTemplateDto, authUser: AuthUser): Promise<TemplateResponse> {
     const workspaceId = await this.resolveWorkspaceId(authUser);
 
+    let copyNumber: number | null = null;
+    let copiedFrom: string | null = dto.copiedFrom ?? null;
+
+    if (dto.isCopy && copiedFrom) {
+      const highest = await this.templateModel
+        .findOne({
+          workspaceId: this.toObjectId(workspaceId),
+          copiedFrom,
+        })
+        .sort({ copyNumber: -1 })
+        .select('copyNumber')
+        .lean()
+        .exec();
+      copyNumber = ((highest?.copyNumber as number) ?? 0) + 1;
+    }
+
     const template = new this.templateModel({
       workspaceId: this.toObjectId(workspaceId),
       name: dto.name.trim(),
@@ -104,6 +120,8 @@ export class TemplatesService {
       email: null,
       whatsapp: null,
       isCopy: dto.isCopy ?? false,
+      copiedFrom,
+      copyNumber,
     });
 
     if (dto.channelType === TemplateChannelType.EMAIL) {
@@ -361,6 +379,14 @@ export class TemplatesService {
 
     if (dto.isCopy !== undefined) {
       template.isCopy = dto.isCopy;
+    }
+
+    if (dto.copiedFrom !== undefined) {
+      template.copiedFrom = dto.copiedFrom;
+    }
+
+    if (dto.copyNumber !== undefined) {
+      template.copyNumber = dto.copyNumber;
     }
 
     if (template.channelType === TemplateChannelType.EMAIL) {
@@ -758,6 +784,8 @@ export class TemplatesService {
       layoutPreset: template.layoutPreset ?? null,
       variables: [...template.variables],
       isCopy: template.isCopy ?? false,
+      copiedFrom: template.copiedFrom ?? null,
+      copyNumber: template.copyNumber ?? null,
       createdAt: template.createdAt,
       updatedAt: template.updatedAt,
     };

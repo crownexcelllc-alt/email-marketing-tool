@@ -92,6 +92,12 @@ export class Template {
   @Prop({ type: Boolean, default: false })
   isCopy?: boolean;
 
+  @Prop({ type: String, default: null })
+  copiedFrom?: string | null;
+
+  @Prop({ type: Number, default: null })
+  copyNumber?: number | null;
+
   createdAt?: Date;
   updatedAt?: Date;
 }

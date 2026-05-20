@@ -36,6 +36,9 @@ export function TemplatePreviewDialog({
           <DialogTitle>Preview Template</DialogTitle>
           <DialogDescription>
             {template.name}
+            <span className="mt-1 block text-xs text-zinc-400">
+              <span className="font-semibold">Subject:</span> {template.subject || '(no subject)'}
+            </span>
           </DialogDescription>
         </DialogHeader>
 
