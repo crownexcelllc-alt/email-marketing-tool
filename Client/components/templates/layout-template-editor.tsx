@@ -1,7 +1,7 @@
 'use client';
 
 import { Eye, Redo2, Undo2 } from 'lucide-react';
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import 'grapesjs/dist/css/grapes.min.css';
 import { TemplateImagePickerDialog } from '@/components/templates/template-image-picker-dialog';
@@ -117,6 +117,8 @@ interface GrapesEditorInstance {
     getDocument?: () => Document | null;
     getWindow?: () => Window | null;
     getFrameEl?: () => HTMLIFrameElement | null;
+    updateTools?: () => void;
+    refresh?: () => void;
   };
 }
 
@@ -495,6 +497,12 @@ function supportsInlineTextEditing(type: string): boolean {
   return INLINE_TEXT_EDITABLE_TYPES.has(type);
 }
 
+function isStrictTextComponent(component: GrapesComponentModel | null): boolean {
+  if (!component) return false;
+  const type = String(component.get?.('type') ?? '');
+  return supportsInlineTextEditing(type);
+}
+
 function normalizeLinkInput(input: string): string {
   const raw = input.trim().replace(/\s+/g, '');
   if (!raw) {
@@ -528,26 +536,6 @@ function normalizeLinkTarget(input: string | null | undefined): string {
   return target || DEFAULT_LINK_TARGET;
 }
 
-function resolveOpenableHref(input: string): string | null {
-  const normalized = normalizeLinkInput(input);
-  if (!normalized || normalized === '#') {
-    return null;
-  }
-
-  if (/^(mailto:|tel:|sms:)/i.test(normalized)) {
-    return normalized;
-  }
-
-  try {
-    const parsed = new URL(normalized, window.location.origin);
-    if ((parsed.protocol === 'http:' || parsed.protocol === 'https:') && !parsed.hostname) {
-      return null;
-    }
-    return parsed.href;
-  } catch {
-    return null;
-  }
-}
 
 function collectionToComponents(collection: unknown): GrapesComponentModel[] {
   if (!collection) {
@@ -1232,109 +1220,6 @@ function toMjmlFromEditor(editor: GrapesEditorInstance): string {
   return `<mjml><mj-body>${trimmed}</mj-body></mjml>`;
 }
 
-type ToolbarAnchorRect = {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-};
-
-function toParentViewportRect(frameEl: HTMLIFrameElement, rect: DOMRect): ToolbarAnchorRect {
-  const frameRect = frameEl.getBoundingClientRect();
-  return {
-    top: frameRect.top + rect.top,
-    left: frameRect.left + rect.left,
-    width: rect.width,
-    height: rect.height,
-  };
-}
-
-function getToolbarAnchorRect(
-  editor: GrapesEditorInstance,
-  selectedComponent: GrapesComponentModel | null,
-): ToolbarAnchorRect | null {
-  const frameEl = editor.Canvas?.getFrameEl?.();
-  const frameDoc = editor.Canvas?.getDocument?.();
-  if (!frameEl || !frameDoc) {
-    return null;
-  }
-
-  const selection = frameDoc.getSelection?.();
-  if (selection && selection.rangeCount > 0) {
-    const range = selection.getRangeAt(0).cloneRange();
-    const rangeRect = range.getBoundingClientRect();
-    if (rangeRect.width > 0 || rangeRect.height > 0) {
-      return toParentViewportRect(frameEl, rangeRect);
-    }
-
-    const rangeRects = range.getClientRects();
-    if (rangeRects.length > 0) {
-      return toParentViewportRect(frameEl, rangeRects[0] as DOMRect);
-    }
-
-    const anchorNode = selection.anchorNode;
-    const anchorElement =
-      anchorNode instanceof Element
-        ? anchorNode
-        : anchorNode?.parentElement ?? null;
-    if (anchorElement) {
-      return toParentViewportRect(frameEl, anchorElement.getBoundingClientRect());
-    }
-  }
-
-  const selectedEl = selectedComponent?.getEl?.();
-  if (!selectedEl) {
-    return null;
-  }
-
-  return toParentViewportRect(frameEl, selectedEl.getBoundingClientRect());
-}
-
-function positionRteToolbar(
-  editor: GrapesEditorInstance,
-  _shellEl: HTMLElement,
-  selectedComponent: GrapesComponentModel | null,
-): void {
-  const toolbarEl = document.querySelector('.gjs-rte-toolbar') as HTMLElement | null;
-  if (!toolbarEl) {
-    return;
-  }
-
-  if (!selectedComponent) {
-    toolbarEl.style.display = 'none';
-    return;
-  }
-
-  const selectedType = String(selectedComponent.get?.('type') ?? '');
-  if (!supportsInlineTextEditing(selectedType)) {
-    toolbarEl.style.display = 'none';
-    return;
-  }
-
-  toolbarEl.style.display = '';
-  const anchorRect = getToolbarAnchorRect(editor, selectedComponent);
-  if (!anchorRect) {
-    toolbarEl.style.display = 'none';
-    return;
-  }
-
-  const toolbarRect = toolbarEl.getBoundingClientRect();
-  const gap = 4;
-  const minPadX = 8;
-  const minPadY = 8;
-  const maxX = Math.max(minPadX, window.innerWidth - toolbarRect.width - minPadX);
-  const anchorCenterX = anchorRect.left + anchorRect.width / 2;
-  const left = Math.min(Math.max(anchorCenterX - toolbarRect.width / 2, minPadX), maxX);
-
-  const aboveTop = anchorRect.top - toolbarRect.height - gap;
-  const belowTop = anchorRect.top + anchorRect.height + gap;
-  const top = aboveTop >= minPadY ? aboveTop : belowTop;
-
-  toolbarEl.style.position = 'fixed';
-  toolbarEl.style.left = `${left}px`;
-  toolbarEl.style.top = `${Math.max(minPadY, top)}px`;
-  toolbarEl.style.transform = 'none';
-}
 
 export function LayoutTemplateEditor({
   value,
@@ -1380,6 +1265,7 @@ export function LayoutTemplateEditor({
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
   const [imagePickerMode, setImagePickerMode] = useState<ImagePickerMode>('image');
   const [isTextLinkDialogOpen, setIsTextLinkDialogOpen] = useState(false);
+  const isTextLinkDialogOpenRef = useRef(false);
   const [linkDialogUrl, setLinkDialogUrl] = useState('');
   const [linkDialogError, setLinkDialogError] = useState('');
   const [linkDialogMode, setLinkDialogMode] = useState<'text' | 'block'>('text');
@@ -1394,6 +1280,9 @@ export function LayoutTemplateEditor({
   const imageLinkDialogInputRef = useRef<HTMLInputElement | null>(null);
   const [, forceSelectedComponentRefresh] = useState(0);
   const [activeTextEditValue, setActiveTextEditValue] = useState<string | null>(null);
+  const [customRteToolbarPos, setCustomRteToolbarPos] = useState<{ top: number; left: number } | null>(null);
+  const [isCustomRteToolbarVisible, setIsCustomRteToolbarVisible] = useState(false);
+  const customToolbarRafRef = useRef<number | null>(null);
 
   const shellId = useMemo(() => `mjml-shell-${Math.random().toString(36).slice(2, 10)}`, []);
   const layoutTargets = useMemo(
@@ -1405,6 +1294,46 @@ export function LayoutTemplateEditor({
     }),
     [shellId],
   );
+
+  // ── Custom floating RTE toolbar inline styles ──
+  const btnStyle: CSSProperties = {
+    minWidth: 0,
+    minHeight: 30,
+    border: '1px solid #d1d5db',
+    borderRadius: 6,
+    background: '#ffffff',
+    color: '#0f172a',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0 7px',
+    cursor: 'pointer',
+    fontSize: 13,
+    lineHeight: 1,
+    whiteSpace: 'nowrap',
+    transition: 'border-color 0.15s, background 0.15s',
+  };
+  const selectStyle: CSSProperties = {
+    height: 30,
+    minWidth: 0,
+    width: 'auto',
+    border: '1px solid #d1d5db',
+    borderRadius: 6,
+    outline: 'none',
+    background: '#ffffff',
+    color: '#0f172a',
+    fontSize: 12,
+    padding: '0 4px',
+    cursor: 'pointer',
+  };
+  const separatorStyle: CSSProperties = {
+    display: 'inline-block',
+    width: 1,
+    height: 22,
+    background: '#cbd5e1',
+    margin: '4px 2px',
+    flexShrink: 0,
+  };
 
   const runPreviewToggle = () => {
     if (!previewMode && previewBlocked) {
@@ -1594,10 +1523,164 @@ export function LayoutTemplateEditor({
       // Command availability can vary by GrapesJS version.
     }
 
-    const toolbarEl = document.querySelector('.gjs-rte-toolbar') as HTMLElement | null;
-    if (toolbarEl) {
-      toolbarEl.style.display = 'none';
+    // Hide the custom React RTE toolbar
+    setIsCustomRteToolbarVisible(false);
+    setCustomRteToolbarPos(null);
+
+    // Also force-hide native GrapesJS RTE toolbar as a safety net
+    const nativeToolbarEl = document.querySelector('.gjs-rte-toolbar') as HTMLElement | null;
+    if (nativeToolbarEl) {
+      nativeToolbarEl.style.setProperty('display', 'none', 'important');
     }
+
+    // Deselect the current GrapesJS component so canvas outlines are cleared
+    try {
+      const currentSelected = editor?.getSelected?.();
+      if (currentSelected) {
+        editor?.select?.(null);
+      }
+    } catch {
+      // Ignore deselection errors.
+    }
+
+    // Reset canvas active tools to clear any lingering overlays
+    try {
+      editor?.Canvas?.updateTools?.();
+    } catch {
+      // Ignore canvas update issues.
+    }
+  };
+
+  const computeCustomToolbarPosition = (): { top: number; left: number } | null => {
+    const editor = editorRef.current;
+    const selected = selectedComponentRef.current;
+    if (!editor || !isStrictTextComponent(selected)) return null;
+
+    const frameEl = editor.Canvas?.getFrameEl?.();
+    const el = selected?.getEl?.();
+    if (!frameEl || !el) return null;
+
+    const frameRect = frameEl.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+
+    const toolbarHeight = 44;
+    const gap = 6;
+    const minPadY = 8;
+    const maxY = window.innerHeight - toolbarHeight - minPadY;
+
+    // Position above the element; if not enough space, position below
+    const aboveTop = frameRect.top + elRect.top - toolbarHeight - gap;
+    const belowTop = frameRect.top + elRect.top + elRect.height + gap;
+    const rawTop = aboveTop >= minPadY ? aboveTop : belowTop;
+    const clampedTop = Math.min(Math.max(minPadY, rawTop), maxY);
+
+    // Center horizontally on the element
+    const centerX = frameRect.left + elRect.left + elRect.width / 2;
+    return { top: clampedTop, left: centerX };
+  };
+
+  const updateSelectionCoordinates = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const selected = editor.getSelected?.() as GrapesComponentModel | null;
+    const container = containerRef.current;
+    if (!container) return;
+
+    if (!selected) {
+      container.style.removeProperty('--selected-comp-top');
+      container.style.removeProperty('--selected-comp-left');
+      container.style.removeProperty('--selected-comp-width');
+      container.style.removeProperty('--selected-comp-height');
+      return;
+    }
+
+    const el = selected.getEl?.();
+    if (!el) {
+      container.style.removeProperty('--selected-comp-top');
+      container.style.removeProperty('--selected-comp-left');
+      container.style.removeProperty('--selected-comp-width');
+      container.style.removeProperty('--selected-comp-height');
+      return;
+    }
+
+    const frameEl = editor.Canvas?.getFrameEl?.();
+    if (!frameEl) return;
+
+    const rect = el.getBoundingClientRect();
+    const iframeRect = frameEl.getBoundingClientRect();
+
+    const toolbarEl = container.querySelector('.gjs-toolbar') as HTMLElement | null;
+    const offsetParent = (toolbarEl?.offsetParent as HTMLElement | null)
+      ?? (container.querySelector('.gjs-cv-canvas') as HTMLElement | null)
+      ?? container;
+
+    const parentRect = offsetParent.getBoundingClientRect();
+
+    const relativeTop = iframeRect.top + rect.top - parentRect.top;
+    const relativeLeft = iframeRect.left + rect.left - parentRect.left;
+
+    container.style.setProperty('--selected-comp-top', `${relativeTop}px`);
+    container.style.setProperty('--selected-comp-left', `${relativeLeft}px`);
+    container.style.setProperty('--selected-comp-width', `${rect.width}px`);
+    container.style.setProperty('--selected-comp-height', `${rect.height}px`);
+  };
+
+  const updateCustomToolbarPosition = () => {
+    if (customToolbarRafRef.current !== null) {
+      window.cancelAnimationFrame(customToolbarRafRef.current);
+    }
+    customToolbarRafRef.current = window.requestAnimationFrame(() => {
+      customToolbarRafRef.current = null;
+
+      const editor = editorRef.current;
+      if (editor) {
+        try {
+          editor.Canvas?.refresh?.();
+        } catch (err) {
+          // Ignore refresh canvas errors
+        }
+      }
+
+      updateSelectionCoordinates();
+
+      const selected = selectedComponentRef.current;
+      if (isTextLinkDialogOpenRef.current || !isStrictTextComponent(selected)) {
+        setIsCustomRteToolbarVisible(false);
+        setCustomRteToolbarPos(null);
+        return;
+      }
+      const pos = computeCustomToolbarPosition();
+      if (pos) {
+        setCustomRteToolbarPos(pos);
+        setIsCustomRteToolbarVisible(true);
+      } else {
+        setIsCustomRteToolbarVisible(false);
+        setCustomRteToolbarPos(null);
+      }
+    });
+  };
+
+  const execRteCommand = (command: string, value?: string) => {
+    prepareRteSelection();
+    const frameDoc = editorRef.current?.Canvas?.getDocument?.();
+    if (frameDoc) {
+      frameDoc.execCommand(command, false, value ?? '');
+    }
+    captureCurrentRteRange();
+    syncMjTextModelFromRenderedDom(selectedComponentRef.current, { silent: true });
+    bumpSelectedComponent();
+  };
+
+  const insertRteHtml = (html: string) => {
+    prepareRteSelection();
+    const frameDoc = editorRef.current?.Canvas?.getDocument?.();
+    if (frameDoc) {
+      frameDoc.execCommand('insertHTML', false, html);
+    }
+    captureCurrentRteRange();
+    syncMjTextModelFromRenderedDom(selectedComponentRef.current, { silent: true });
+    bumpSelectedComponent();
   };
 
   const captureCurrentRteRange = () => {
@@ -2218,9 +2301,14 @@ export function LayoutTemplateEditor({
   }, [onUserEdit]);
 
   useEffect(() => {
+    isTextLinkDialogOpenRef.current = isTextLinkDialogOpen;
     if (!isTextLinkDialogOpen) {
+      updateCustomToolbarPosition();
       return;
     }
+
+    setIsCustomRteToolbarVisible(false);
+    setCustomRteToolbarPos(null);
 
     const timer = window.setTimeout(() => {
       linkDialogInputRef.current?.focus();
@@ -2274,7 +2362,6 @@ export function LayoutTemplateEditor({
     let disposed = false;
     let assetModalObserver: MutationObserver | null = null;
     let frameToolbarListenersCleanup: (() => void) | null = null;
-    let toolbarPositionRaf: number | null = null;
     let handleResize: (() => void) | null = null;
 
     async function init() {
@@ -2355,23 +2442,10 @@ export function LayoutTemplateEditor({
         editor.setDevice?.('Desktop');
       }
 
+      // queueRteToolbarPosition is replaced by updateCustomToolbarPosition.
+      // We keep a local alias so that startInlineTextEdit can call it.
       const queueRteToolbarPosition = () => {
-        if (!containerRef.current) {
-          return;
-        }
-
-        if (toolbarPositionRaf !== null) {
-          window.cancelAnimationFrame(toolbarPositionRaf);
-        }
-
-        toolbarPositionRaf = window.requestAnimationFrame(() => {
-          toolbarPositionRaf = null;
-          positionRteToolbar(
-            editor,
-            containerRef.current as HTMLElement,
-            (editor.getSelected?.() as GrapesComponentModel | null) ?? null,
-          );
-        });
+        updateCustomToolbarPosition();
       };
 
       const attachFrameToolbarListeners = () => {
@@ -2385,7 +2459,11 @@ export function LayoutTemplateEditor({
 
         const onSelectionUpdate = () => {
           captureCurrentRteRange();
-          queueRteToolbarPosition();
+          // Reposition custom toolbar if text component is selected
+          const currentComp = editor.getSelected?.() as GrapesComponentModel | null;
+          if (isStrictTextComponent(currentComp)) {
+            updateCustomToolbarPosition();
+          }
         };
 
         const onContentInput = () => {
@@ -2402,48 +2480,77 @@ export function LayoutTemplateEditor({
           }, 650);
         };
 
+        const onCanvasClick = (event: MouseEvent) => {
+          const target = event.target as HTMLElement | null;
+          if (!target) return;
+
+          // 1. Prevent link redirection in edit mode
+          const anchor = target.closest('a');
+          if (anchor) {
+            event.preventDefault();
+          }
+
+          // 2. Ensure iframe window focus
+          frameWin.focus();
+
+          // 3. Selection stability fallback
+          // If clicked inside an active contenteditable element, let standard cursor selection/editing work naturally.
+          if (target.closest('[contenteditable="true"]')) {
+            return;
+          }
+
+          try {
+            let component: GrapesComponentModel | null = null;
+            let current: HTMLElement | null = target;
+            while (current && current.tagName?.toLowerCase() !== 'body') {
+              const currentWithGjsv = current as HTMLElement & { __gjsv?: { model?: GrapesComponentModel } };
+              if (currentWithGjsv.__gjsv?.model) {
+                component = currentWithGjsv.__gjsv.model;
+                break;
+              }
+              current = current.parentElement;
+            }
+
+            if (component) {
+              const currentSelected = editor.getSelected?.();
+              if (currentSelected !== component) {
+                editor.select?.(component);
+              }
+            }
+          } catch (err) {
+            console.warn('Failed to retrieve or select component from element:', err);
+          }
+        };
+
+        const onCanvasMouseDown = () => {
+          frameWin.focus();
+        };
+
         frameDoc.addEventListener('selectionchange', onSelectionUpdate, true);
         frameDoc.addEventListener('mouseup', onSelectionUpdate, true);
         frameDoc.addEventListener('keyup', onSelectionUpdate, true);
         frameDoc.addEventListener('input', onContentInput, true);
-        frameWin.addEventListener('scroll', queueRteToolbarPosition, true);
+        frameDoc.addEventListener('click', onCanvasClick, true);
+        frameDoc.addEventListener('mousedown', onCanvasMouseDown, true);
+        frameWin.addEventListener('scroll', updateCustomToolbarPosition, true);
+        window.addEventListener('scroll', updateCustomToolbarPosition, true);
+        window.addEventListener('resize', updateCustomToolbarPosition);
 
         frameToolbarListenersCleanup = () => {
           frameDoc.removeEventListener('selectionchange', onSelectionUpdate, true);
           frameDoc.removeEventListener('mouseup', onSelectionUpdate, true);
           frameDoc.removeEventListener('keyup', onSelectionUpdate, true);
           frameDoc.removeEventListener('input', onContentInput, true);
-          frameWin.removeEventListener('scroll', queueRteToolbarPosition, true);
+          frameDoc.removeEventListener('click', onCanvasClick, true);
+          frameDoc.removeEventListener('mousedown', onCanvasMouseDown, true);
+          frameWin.removeEventListener('scroll', updateCustomToolbarPosition, true);
+          window.removeEventListener('scroll', updateCustomToolbarPosition, true);
+          window.removeEventListener('resize', updateCustomToolbarPosition);
         };
       };
 
-      const ensureRteToolbarInteraction = () => {
-        const toolbarEl = document.querySelector('.gjs-rte-toolbar') as HTMLElement | null;
-        if (!toolbarEl || toolbarEl.dataset.mjmlToolbarSelectionGuard === 'true') {
-          return;
-        }
-
-        toolbarEl.dataset.mjmlToolbarSelectionGuard = 'true';
-        toolbarEl.addEventListener(
-          'mousedown',
-          (event) => {
-            const target = event.target as HTMLElement | null;
-            if (!target) {
-              return;
-            }
-
-            if (target.closest('select')) {
-              event.stopPropagation();
-              return;
-            }
-
-            event.preventDefault();
-            event.stopPropagation();
-            prepareRteSelection();
-          },
-          true,
-        );
-      };
+      // Native GrapesJS RTE toolbar is completely hidden via CSS.
+      // No ensureRteToolbarInteraction needed — custom React toolbar handles all interactions.
 
       const ensureCanvasScroll = () => {
         const frameBody = editor.Canvas?.getBody?.();
@@ -2491,10 +2598,6 @@ export function LayoutTemplateEditor({
         const roundedTargetHeight = Math.ceil(targetHeight);
         const adjustedHeight = `${roundedTargetHeight}px`;
 
-        const editorEl = containerRef.current?.querySelector('.gjs-editor') as HTMLElement | null;
-        const editorContEl = containerRef.current?.querySelector('.gjs-editor-cont') as HTMLElement | null;
-        const canvasEl = containerRef.current?.querySelector('.gjs-cv-canvas') as HTMLElement | null;
-        const frameWrapperEl = containerRef.current?.querySelector('.gjs-frame-wrapper') as HTMLElement | null;
 
         if (lastAppliedCanvasHeightRef.current !== roundedTargetHeight) {
           const heightDiff = Math.abs(lastAppliedCanvasHeightRef.current - roundedTargetHeight);
@@ -2539,40 +2642,7 @@ export function LayoutTemplateEditor({
           frameDoc.head.appendChild(styleEl);
         }
 
-        if (frameDoc && !frameDoc.documentElement.dataset.mjmlLinkClickHandlerAttached) {
-          frameDoc.documentElement.dataset.mjmlLinkClickHandlerAttached = 'true';
-          frameDoc.addEventListener(
-            'click',
-            (event) => {
-              const anchor = (event.target as Element | null)?.closest('a');
-              if (!anchor || !anchor.href) {
-                return;
-              }
-
-              const href = anchor.getAttribute('href')?.trim();
-              if (!href) {
-                return;
-              }
-
-              const openableHref = resolveOpenableHref(href);
-              if (!openableHref) {
-                event.preventDefault();
-                event.stopPropagation();
-                return;
-              }
-
-              const parentWindow = frameDoc.defaultView?.parent;
-              try {
-                parentWindow?.open(openableHref, '_blank', 'noopener,noreferrer');
-              } catch {
-                // Invalid or blocked URLs should never crash the editor.
-              }
-              event.preventDefault();
-              event.stopPropagation();
-            },
-            true,
-          );
-        }
+        // Legacy link click handler removed. Unified canvas click handler is now registered in attachFrameToolbarListeners.
       };
 
       refreshCanvasRef.current = ensureCanvasScroll;
@@ -2648,9 +2718,19 @@ export function LayoutTemplateEditor({
       editor.on('load', ensureCanvasScroll);
       editor.on('load', attachFrameToolbarListeners);
       editor.on('load', injectImageManagerButton);
-      editor.on('load', ensureRteToolbarInteraction);
       editor.on('modal:open', injectImageManagerButton);
-      editor.on('rte:enable', ensureRteToolbarInteraction);
+      // Show custom toolbar when GrapesJS activates the RTE
+      editor.on('rte:enable', () => {
+        const selected = selectedComponentRef.current;
+        if (isStrictTextComponent(selected)) {
+          updateCustomToolbarPosition();
+        }
+      });
+      // Hide custom toolbar when GrapesJS deactivates the RTE
+      editor.on('rte:disable', () => {
+        setIsCustomRteToolbarVisible(false);
+        setCustomRteToolbarPos(null);
+      });
       editor.on('update', debouncedEnsureCanvasScroll);
       const startInlineTextEdit = (component: GrapesComponentModel) => {
         const type = String(component.get('type') ?? '');
@@ -2680,34 +2760,69 @@ export function LayoutTemplateEditor({
       editor.on('component:selected', (component) => {
         const selected = component as GrapesComponentModel;
         normalizeImageComponentInteraction(selected);
-        if (!fullHeight) {
-          return;
-        }
-        ensureComponentTraits(selected);
         setSelectedComponent(selected);
         bumpSelectedComponent();
-        setActiveRightPanel('traits');
-        startInlineTextEdit(selected);
-        captureCurrentRteRange();
-        queueRteToolbarPosition();
+
+        try {
+          editor.Canvas?.refresh?.();
+        } catch (err) {
+          console.warn('Failed to refresh canvas:', err);
+        }
+
+        // ── Custom toolbar: text-only rule ──
+        if (isStrictTextComponent(selected)) {
+          // Show custom toolbar for text components
+          if (!fullHeight) {
+            startInlineTextEdit(selected);
+            captureCurrentRteRange();
+            updateCustomToolbarPosition();
+            return;
+          }
+          ensureComponentTraits(selected);
+          setActiveRightPanel('traits');
+          startInlineTextEdit(selected);
+          captureCurrentRteRange();
+          updateCustomToolbarPosition();
+        } else {
+          // Hide custom toolbar for non-text components
+          setIsCustomRteToolbarVisible(false);
+          setCustomRteToolbarPos(null);
+          updateCustomToolbarPosition();
+          if (!fullHeight) return;
+          ensureComponentTraits(selected);
+          setActiveRightPanel('traits');
+        }
       });
       editor.on('component:deselected', () => {
         const currentSelected = editor.getSelected?.() as GrapesComponentModel | null;
+
+        try {
+          editor.Canvas?.refresh?.();
+        } catch (err) {
+          console.warn('Failed to refresh canvas:', err);
+        }
+
         if (currentSelected) {
           normalizeImageComponentInteraction(currentSelected);
           setSelectedComponent(currentSelected);
           bumpSelectedComponent();
-          startInlineTextEdit(currentSelected);
-          captureCurrentRteRange();
-          queueRteToolbarPosition();
+
+          if (isStrictTextComponent(currentSelected)) {
+            startInlineTextEdit(currentSelected);
+            captureCurrentRteRange();
+            updateCustomToolbarPosition();
+          } else {
+            setIsCustomRteToolbarVisible(false);
+            setCustomRteToolbarPos(null);
+            updateCustomToolbarPosition();
+          }
           return;
         }
         setSelectedComponent(null);
         bumpSelectedComponent();
-        const toolbarEl = document.querySelector('.gjs-rte-toolbar') as HTMLElement | null;
-        if (toolbarEl) {
-          toolbarEl.style.display = 'none';
-        }
+        setIsCustomRteToolbarVisible(false);
+        setCustomRteToolbarPos(null);
+        updateCustomToolbarPosition();
       });
       editor.on('component:update:attributes', (component) => {
         const cmp = component as GrapesComponentModel;
@@ -2770,12 +2885,14 @@ export function LayoutTemplateEditor({
         const cmp = component as GrapesComponentModel;
         if (selectedComponentRef.current && cmp === selectedComponentRef.current) {
           bumpSelectedComponent();
+          updateCustomToolbarPosition();
         }
       });
       editor.on('component:update:content', (component) => {
         const cmp = component as GrapesComponentModel;
         if (selectedComponentRef.current && cmp === selectedComponentRef.current) {
           bumpSelectedComponent();
+          updateCustomToolbarPosition();
         }
       });
       editor.on('load', () => {
@@ -2786,9 +2903,7 @@ export function LayoutTemplateEditor({
         }
       });
       ensureCanvasScroll();
-      ensureRteToolbarInteraction();
       captureCurrentRteRange();
-      queueRteToolbarPosition();
 
       const syncCompiledHtml = async () => {
         const mjml = toMjmlFromEditor(editor);
@@ -2854,8 +2969,8 @@ export function LayoutTemplateEditor({
       if (handleResize) {
         window.removeEventListener('resize', handleResize);
       }
-      if (toolbarPositionRaf !== null) {
-        window.cancelAnimationFrame(toolbarPositionRaf);
+      if (customToolbarRafRef.current !== null) {
+        window.cancelAnimationFrame(customToolbarRafRef.current);
       }
       if (updateTimerRef.current) {
         clearTimeout(updateTimerRef.current);
@@ -3856,6 +3971,24 @@ export function LayoutTemplateEditor({
             top: 0 !important;
           }
 
+          .mjml-shell .gjs-toolbar {
+            position: absolute !important;
+            top: calc(var(--selected-comp-top, 0px) + var(--selected-comp-height, 0px) + 2px) !important;
+            left: calc(var(--selected-comp-left, 0px) + var(--selected-comp-width, 0px)) !important;
+            transform: translateX(-100%) !important;
+            pointer-events: auto !important;
+            z-index: 1000 !important;
+          }
+          .mjml-shell .gjs-highlighter {
+            pointer-events: none !important;
+          }
+          .mjml-shell .gjs-badge {
+            pointer-events: none !important;
+          }
+          .mjml-shell .gjs-placeholder {
+            pointer-events: none !important;
+          }
+
           .mjml-shell .gjs-editor-cont {
             background: transparent !important;
           }
@@ -3865,80 +3998,15 @@ export function LayoutTemplateEditor({
             background: transparent !important;
           }
 
-          .mjml-shell .gjs-rte-toolbar {
-            position: fixed !important;
-            z-index: 9999 !important;
-            display: flex !important;
-            flex-wrap: nowrap !important;
-            gap: 4px 2px !important;
-            width: fit-content !important;
-            max-width: calc(100vw - 16px) !important;
-            padding: 4px !important;
-            border: 1px solid #d1d5db !important;
-            border-radius: 8px !important;
-            background: #d1d5db !important;
-            opacity: 1 !important;
-            visibility: visible !important;
-            overflow-x: auto !important;
-            overflow-y: hidden !important;
-          }
-
+          /* ── Native GrapesJS RTE toolbar is completely disabled ── */
+          .mjml-shell .gjs-rte-toolbar,
           .mjml-shell .gjs-rte-actionbar {
-            z-index: 9999 !important;
-            background: #d1d5db !important;
-            border-radius: 8px !important;
-            padding: 2px !important;
-          }
-
-          .mjml-shell .gjs-rte-toolbar .gjs-rte-action {
-            min-width: 0 !important;
-            min-height: 28px !important;
-            border: 1px solid #d1d5db !important;
-            border-radius: 6px !important;
-            background: #ffffff !important;
-            color: #0f172a !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            padding: 0 6px !important;
-            flex: 0 0 auto !important;
-            width: auto !important;
-            max-width: none !important;
-            white-space: nowrap !important;
-          }
-
-          .mjml-shell .gjs-rte-toolbar .gjs-rte-action:hover {
-            border-color: #7dd3fc !important;
-            background: #f0f9ff !important;
-          }
-
-          .mjml-shell .gjs-rte-select {
-            height: 26px !important;
-            min-width: 0 !important;
-            width: auto !important;
-            border: 0 !important;
-            outline: none !important;
-            background: transparent !important;
-            color: #0f172a !important;
-            font-size: 12px !important;
-            white-space: nowrap !important;
-          }
-
-          .mjml-shell .gjs-rte-select--font {
-            width: auto !important;
-          }
-
-          .mjml-shell .gjs-rte-select--var {
-            width: auto !important;
-          }
-
-          .mjml-shell .gjs-rte-color {
-            width: 22px !important;
-            height: 22px !important;
-            border: 0 !important;
-            padding: 0 !important;
-            background: transparent !important;
-            cursor: pointer !important;
+            display: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+            width: 0 !important;
+            height: 0 !important;
+            overflow: hidden !important;
           }
 
           .mjml-shell .gjs-frame-wrapper,
@@ -4234,6 +4302,215 @@ export function LayoutTemplateEditor({
           }
         `}</style>
 
+        {/* ── Custom React-based floating RTE toolbar ── */}
+        {isCustomRteToolbarVisible && customRteToolbarPos && !isTextLinkDialogOpen && (
+          <div
+            id="custom-rte-floating-toolbar"
+            onMouseDown={(e) => {
+              // Prevent stealing focus from iframe contenteditable
+              const target = e.target as HTMLElement;
+              if (target.closest('select')) {
+                e.stopPropagation();
+                return;
+              }
+              e.preventDefault();
+              e.stopPropagation();
+              prepareRteSelection();
+            }}
+            style={{
+              position: 'fixed',
+              top: customRteToolbarPos.top,
+              left: customRteToolbarPos.left,
+              transform: 'translateX(-50%)',
+              zIndex: 99999,
+              display: 'flex',
+              flexWrap: 'nowrap',
+              gap: '3px',
+              padding: '4px 6px',
+              borderRadius: '10px',
+              border: '1px solid #cbd5e1',
+              background: '#f1f5f9',
+              boxShadow: '0 4px 24px rgba(0,0,0,0.13), 0 1.5px 6px rgba(0,0,0,0.08)',
+              maxWidth: 'calc(100vw - 16px)',
+              overflowX: 'auto',
+              overflowY: 'hidden',
+              pointerEvents: 'auto',
+            }}
+          >
+            {/* Text Style Select */}
+            <select
+              className="custom-rte-select"
+              defaultValue="p"
+              onChange={(e) => {
+                execRteCommand('formatBlock', `<${e.target.value}>`);
+              }}
+              style={selectStyle}
+            >
+              <option value="p">Paragraph</option>
+              <option value="h1">Heading 1</option>
+              <option value="h2">Heading 2</option>
+              <option value="h3">Heading 3</option>
+              <option value="pre">Preformatted</option>
+            </select>
+
+            {/* Font Size Select */}
+            <select
+              className="custom-rte-select"
+              defaultValue="3"
+              onChange={(e) => {
+                execRteCommand('fontSize', e.target.value);
+              }}
+              style={selectStyle}
+            >
+              <option value="2">12px</option>
+              <option value="3">14px</option>
+              <option value="4">16px</option>
+              <option value="5">18px</option>
+              <option value="6">24px</option>
+            </select>
+
+            {/* Font Family Select */}
+            <select
+              className="custom-rte-select"
+              defaultValue="Arial"
+              onChange={(e) => {
+                execRteCommand('fontName', e.target.value);
+              }}
+              style={selectStyle}
+            >
+              <option value="Arial">Arial</option>
+              <option value="Helvetica">Helvetica</option>
+              <option value="'Times New Roman'">Times New Roman</option>
+              <option value="Georgia">Georgia</option>
+              <option value="Tahoma">Tahoma</option>
+              <option value="Verdana">Verdana</option>
+            </select>
+
+            <span style={separatorStyle} />
+
+            {/* Bold */}
+            <button type="button" title="Bold" style={btnStyle} onClick={() => execRteCommand('bold')}>
+              <b>B</b>
+            </button>
+            {/* Italic */}
+            <button type="button" title="Italic" style={btnStyle} onClick={() => execRteCommand('italic')}>
+              <i>I</i>
+            </button>
+            {/* Underline */}
+            <button type="button" title="Underline" style={btnStyle} onClick={() => execRteCommand('underline')}>
+              <u>U</u>
+            </button>
+            {/* Strikethrough */}
+            <button type="button" title="Strikethrough" style={btnStyle} onClick={() => execRteCommand('strikeThrough')}>
+              <s>S</s>
+            </button>
+
+            <span style={separatorStyle} />
+
+            {/* Align left */}
+            <button type="button" title="Align left" style={btnStyle} onClick={() => execRteCommand('justifyLeft')}>
+              &#8676;
+            </button>
+            {/* Align center */}
+            <button type="button" title="Align center" style={btnStyle} onClick={() => execRteCommand('justifyCenter')}>
+              &#8596;
+            </button>
+            {/* Align right */}
+            <button type="button" title="Align right" style={btnStyle} onClick={() => execRteCommand('justifyRight')}>
+              &#8677;
+            </button>
+
+            <span style={separatorStyle} />
+
+            {/* Number list */}
+            <button type="button" title="Number list" style={btnStyle} onClick={() => execRteCommand('insertOrderedList')}>
+              1.
+            </button>
+            {/* Bullet list */}
+            <button type="button" title="Bullet list" style={btnStyle} onClick={() => execRteCommand('insertUnorderedList')}>
+              &#8226;
+            </button>
+            {/* Outdent */}
+            <button type="button" title="Outdent" style={btnStyle} onClick={() => execRteCommand('outdent')}>
+              &#8672;
+            </button>
+            {/* Indent */}
+            <button type="button" title="Indent" style={btnStyle} onClick={() => execRteCommand('indent')}>
+              &#8674;
+            </button>
+
+            <span style={separatorStyle} />
+
+            {/* Insert link */}
+            <button
+              type="button"
+              title="Insert link"
+              style={btnStyle}
+              onClick={() => {
+                const selection = prepareRteSelection();
+                const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null;
+                const currentHref = getAnchorHrefFromRange(range);
+                openLinkDialog({
+                  rte: {
+                    exec: (cmd: string, val?: string) => execRteCommand(cmd, val),
+                    insertHTML: (html: string) => insertRteHtml(html),
+                    selection: () => prepareRteSelection(),
+                  },
+                  range,
+                  currentHref,
+                });
+              }}
+            >
+              &#128279;
+            </button>
+            {/* Remove link */}
+            <button
+              type="button"
+              title="Remove link"
+              style={btnStyle}
+              onClick={() => {
+                execRteCommand('unlink');
+                syncMjTextModelFromRenderedDom(selectedComponentRef.current);
+              }}
+            >
+              &#128683;
+            </button>
+
+            <span style={separatorStyle} />
+
+            {/* Variables Select */}
+            <select
+              className="custom-rte-select"
+              value=""
+              onChange={(e) => {
+                const val = e.target.value;
+                if (!val) return;
+                const selectedText = prepareRteSelection()?.toString() ?? '';
+                insertRteHtml(selectedText ? `${selectedText}${val}` : val);
+                e.target.value = '';
+              }}
+              style={selectStyle}
+            >
+              <option value="">Variables</option>
+              {RTE_VARIABLES.map((v) => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
+
+            <span style={separatorStyle} />
+
+            {/* Close / Cancel */}
+            <button
+              type="button"
+              title="Close toolbar"
+              style={{ ...btnStyle, color: '#ef4444', fontWeight: 700 }}
+              onClick={() => closeRteToolbar()}
+            >
+              &#10005;
+            </button>
+          </div>
+        )}
+
         <TemplateImagePickerDialog
           open={isImagePickerOpen}
           onOpenChange={(open) => {
@@ -4459,6 +4736,24 @@ export function LayoutTemplateEditor({
 
         .mjml-editor-theme .gjs-two-color {
           color: #334155;
+        }
+
+        .mjml-editor-theme .gjs-toolbar {
+          position: absolute !important;
+          top: calc(var(--selected-comp-top, 0px) + var(--selected-comp-height, 0px) + 2px) !important;
+          left: calc(var(--selected-comp-left, 0px) + var(--selected-comp-width, 0px)) !important;
+          transform: translateX(-100%) !important;
+          pointer-events: auto !important;
+          z-index: 1000 !important;
+        }
+        .mjml-editor-theme .gjs-highlighter {
+          pointer-events: none !important;
+        }
+        .mjml-editor-theme .gjs-badge {
+          pointer-events: none !important;
+        }
+        .mjml-editor-theme .gjs-placeholder {
+          pointer-events: none !important;
         }
 
         .mjml-editor-theme .gjs-three-bg {

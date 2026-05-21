@@ -1,6 +1,7 @@
 import { Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
 import { getTemplateCategoryLabel } from '@/lib/constants/template-categories';
 import type { MarketingTemplate } from '@/lib/types/template';
 
@@ -20,15 +21,6 @@ function LoadingCards() {
       ))}
     </div>
   );
-}
-
-function summarizeTemplateBody(html: string): string {
-  return html
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 130);
 }
 
 function toPreviewDocument(html: string): string {
@@ -79,10 +71,14 @@ export function TemplatesTable({
               <Sparkles className="h-3.5 w-3.5" />
               <span>{getTemplateCategoryLabel(template.category)}</span>
             </div>
-            {template.isCopy && (
-              <span className="inline-flex items-center rounded-full bg-gradient-to-r from-violet-400 to-indigo-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-black shadow-sm shadow-violet-500/20 ring-1 ring-violet-500/30">
-                Copy{template.copyNumber ? ` ${template.copyNumber}` : ''}
-              </span>
+            {template.isCopy ? (
+              <Badge variant="warning" className="text-[10px] px-1.5 py-0 font-semibold uppercase tracking-wider">
+                Copy {template.copyNumber ?? 1}
+              </Badge>
+            ) : (
+              <Badge variant="success" className="text-[10px] px-1.5 py-0 font-semibold uppercase tracking-wider">
+                Original
+              </Badge>
             )}
           </div>
           <div className="mb-3 h-48 overflow-hidden rounded-md border border-zinc-800 bg-white">

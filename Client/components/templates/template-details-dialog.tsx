@@ -48,9 +48,14 @@ export function TemplateDetailsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] w-[96vw] max-w-3xl overflow-auto border-zinc-800 bg-zinc-950 text-zinc-100">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-zinc-100">
+          <DialogTitle className="flex flex-wrap items-center gap-2 text-zinc-100">
             {template.name}
             <Badge variant={template.type === 'email' ? 'neutral' : 'warning'}>{template.type}</Badge>
+            {template.isCopy ? (
+              <Badge variant="warning">Copy {template.copyNumber ?? 1}</Badge>
+            ) : (
+              <Badge variant="success">Original</Badge>
+            )}
           </DialogTitle>
           <DialogDescription className="text-zinc-400">
             View template details and open editor when needed.
