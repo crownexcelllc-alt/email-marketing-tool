@@ -1283,6 +1283,8 @@ export function LayoutTemplateEditor({
   const [customRteToolbarPos, setCustomRteToolbarPos] = useState<{ top: number; left: number } | null>(null);
   const [isCustomRteToolbarVisible, setIsCustomRteToolbarVisible] = useState(false);
   const customToolbarRafRef = useRef<number | null>(null);
+  const [anyModalActive, setAnyModalActive] = useState(false);
+  const isGjsModalOpenRef = useRef(false);
 
   const shellId = useMemo(() => `mjml-shell-${Math.random().toString(36).slice(2, 10)}`, []);
   const layoutTargets = useMemo(
@@ -1548,6 +1550,36 @@ export function LayoutTemplateEditor({
       editor?.Canvas?.updateTools?.();
     } catch {
       // Ignore canvas update issues.
+    }
+  };
+
+  const exitRteModeAndHideToolbar = () => {
+    const editor = editorRef.current;
+
+    // Hide the custom React RTE toolbar
+    setIsCustomRteToolbarVisible(false);
+    setCustomRteToolbarPos(null);
+
+    // Also force-hide native GrapesJS RTE toolbar as a safety net
+    const nativeToolbarEl = document.querySelector('.gjs-rte-toolbar') as HTMLElement | null;
+    if (nativeToolbarEl) {
+      nativeToolbarEl.style.setProperty('display', 'none', 'important');
+    }
+
+    try {
+      editor?.runCommand?.('core:component-exit');
+    } catch {
+      // Command availability can vary by GrapesJS version.
+    }
+
+    const frameDoc = editor?.Canvas?.getDocument?.();
+    const selection = frameDoc?.getSelection?.();
+    if (selection) {
+      try {
+        selection.removeAllRanges();
+      } catch {
+        // Ignore cross-document selection issues.
+      }
     }
   };
 
@@ -2357,12 +2389,85 @@ export function LayoutTemplateEditor({
     onDesignChangeRef.current?.(designJson);
   }, [designJson]);
 
+  // Monitor any modal activity to automatically hide toolbars and outlines.
+  useEffect(() => {
+    const checkIfModalIsActive = (): boolean => {
+      // 1. Local React states
+      if (isImagePickerOpen || isTextLinkDialogOpen || isImageLinkDialogOpen) {
+        return true;
+      }
+
+      // 2. Radix Dialog portals, Shadcn Dialogs, standard ARIA dialogs
+      const radixDialog = document.querySelector('[role="dialog"], [data-radix-portal]');
+      if (radixDialog) {
+        return true;
+      }
+
+      // 3. GrapesJS native modal container
+      const gjsModal = document.querySelector('.gjs-mdl-container');
+      if (gjsModal) {
+        const display = window.getComputedStyle(gjsModal).display;
+        if (display !== 'none') {
+          return true;
+        }
+      }
+
+      // 4. GrapesJS modal dialog element
+      const gjsDialog = document.querySelector('.gjs-mdl-dialog');
+      if (gjsDialog) {
+        return true;
+      }
+
+      // 5. GrapesJS editor internal modal state
+      if (isGjsModalOpenRef.current) {
+        return true;
+      }
+
+      return false;
+    };
+
+    // Run initial check
+    const isActive = checkIfModalIsActive();
+    setAnyModalActive(isActive);
+
+    // Set up MutationObserver to react to DOM changes
+    const observer = new MutationObserver(() => {
+      const active = checkIfModalIsActive();
+      setAnyModalActive(active);
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['style', 'class', 'data-state'],
+    });
+
+    // Setup an interval as a fallback for transitions/animations
+    const interval = setInterval(() => {
+      const active = checkIfModalIsActive();
+      setAnyModalActive((prev) => (prev !== active ? active : prev));
+    }, 250);
+
+    return () => {
+      observer.disconnect();
+      clearInterval(interval);
+    };
+  }, [isImagePickerOpen, isTextLinkDialogOpen, isImageLinkDialogOpen]);
+
+  useEffect(() => {
+    if (anyModalActive) {
+      closeRteToolbar();
+    }
+  }, [anyModalActive]);
+
   // The editor instance is initialized only once per layout shell/fullHeight context.
   useEffect(() => {
     let disposed = false;
     let assetModalObserver: MutationObserver | null = null;
     let frameToolbarListenersCleanup: (() => void) | null = null;
     let handleResize: (() => void) | null = null;
+    let handleHostMouseDown: ((event: MouseEvent) => void) | null = null;
 
     async function init() {
       if (!containerRef.current || editorRef.current) {
@@ -2719,6 +2824,13 @@ export function LayoutTemplateEditor({
       editor.on('load', attachFrameToolbarListeners);
       editor.on('load', injectImageManagerButton);
       editor.on('modal:open', injectImageManagerButton);
+      editor.on('modal:open', () => {
+        isGjsModalOpenRef.current = true;
+        setAnyModalActive(true);
+      });
+      editor.on('modal:close', () => {
+        isGjsModalOpenRef.current = false;
+      });
       // Show custom toolbar when GrapesJS activates the RTE
       editor.on('rte:enable', () => {
         const selected = selectedComponentRef.current;
@@ -2730,6 +2842,16 @@ export function LayoutTemplateEditor({
       editor.on('rte:disable', () => {
         setIsCustomRteToolbarVisible(false);
         setCustomRteToolbarPos(null);
+      });
+      // Close text editor toolbar when repositioning or moving components
+      editor.on('run:tlb-move:start', () => {
+        exitRteModeAndHideToolbar();
+      });
+      editor.on('sorter:drag:start', () => {
+        exitRteModeAndHideToolbar();
+      });
+      editor.on('component:drag:start', () => {
+        exitRteModeAndHideToolbar();
       });
       editor.on('update', debouncedEnsureCanvasScroll);
       const startInlineTextEdit = (component: GrapesComponentModel) => {
@@ -2905,6 +3027,14 @@ export function LayoutTemplateEditor({
       ensureCanvasScroll();
       captureCurrentRteRange();
 
+      handleHostMouseDown = (event: MouseEvent) => {
+        const target = event.target as HTMLElement | null;
+        if (target && target.closest('.gjs-toolbar')) {
+          exitRteModeAndHideToolbar();
+        }
+      };
+      document.addEventListener('mousedown', handleHostMouseDown, true);
+
       const syncCompiledHtml = async () => {
         const mjml = toMjmlFromEditor(editor);
         lastEmittedMjmlRef.current = mjml;
@@ -2968,6 +3098,9 @@ export function LayoutTemplateEditor({
       frameToolbarListenersCleanup?.();
       if (handleResize) {
         window.removeEventListener('resize', handleResize);
+      }
+      if (handleHostMouseDown) {
+        document.removeEventListener('mousedown', handleHostMouseDown, true);
       }
       if (customToolbarRafRef.current !== null) {
         window.cancelAnimationFrame(customToolbarRafRef.current);
@@ -4719,7 +4852,7 @@ export function LayoutTemplateEditor({
   }
 
   return (
-    <div className="mjml-editor-theme space-y-3">
+    <div className={cn("mjml-editor-theme space-y-3", anyModalActive && "modal-active")}>
       {showHelpText ? (
         <div className="rounded-md border border-slate-300 bg-slate-100 p-3 text-xs text-slate-700">
           Professional drag-and-drop mode: left blocks, center canvas, right style panel. Saved
@@ -4778,6 +4911,17 @@ export function LayoutTemplateEditor({
         .mjml-editor-theme .gjs-mdl-dialog {
           background: #ffffff;
           color: #0f172a;
+        }
+
+        .mjml-editor-theme.modal-active #custom-rte-floating-toolbar,
+        .mjml-editor-theme.modal-active .gjs-toolbar,
+        .mjml-editor-theme.modal-active .gjs-rte-toolbar,
+        .mjml-editor-theme.modal-active .gjs-highlighter,
+        .mjml-editor-theme.modal-active .gjs-badge {
+          display: none !important;
+          opacity: 0 !important;
+          visibility: hidden !important;
+          pointer-events: none !important;
         }
       `}</style>
 
