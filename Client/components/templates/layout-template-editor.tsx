@@ -2,6 +2,7 @@
 
 import { Eye, Redo2, Undo2 } from 'lucide-react';
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { toast } from 'sonner';
 import 'grapesjs/dist/css/grapes.min.css';
 import { TemplateImagePickerDialog } from '@/components/templates/template-image-picker-dialog';
@@ -1236,6 +1237,7 @@ export function LayoutTemplateEditor({
   previewBlocked = false,
   onPreviewBlocked,
 }: LayoutTemplateEditorProps) {
+  const pathname = usePathname();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<GrapesEditorInstance | null>(null);
   const selectedComponentRef = useRef<GrapesComponentModel | null>(null);
@@ -1341,6 +1343,13 @@ export function LayoutTemplateEditor({
     if (!previewMode && previewBlocked) {
       onPreviewBlocked?.();
       return;
+    }
+    // Hide the RTE toolbar when switching to/from preview
+    if (!previewMode) {
+      setIsCustomRteToolbarVisible(false);
+      setCustomRteToolbarPos(null);
+      closeTextLinkDialog();
+      closeImageLinkDialog();
     }
     setPreviewMode((prev) => !prev);
   };
@@ -1662,34 +1671,39 @@ export function LayoutTemplateEditor({
     if (customToolbarRafRef.current !== null) {
       window.cancelAnimationFrame(customToolbarRafRef.current);
     }
+    // Use double-RAF to ensure the browser has fully painted/laid out the iframe content
+    // before we read getBoundingClientRect(). A single RAF can read stale geometry
+    // immediately after component selection, causing the initial offset bug.
     customToolbarRafRef.current = window.requestAnimationFrame(() => {
-      customToolbarRafRef.current = null;
+      customToolbarRafRef.current = window.requestAnimationFrame(() => {
+        customToolbarRafRef.current = null;
 
-      const editor = editorRef.current;
-      if (editor) {
-        try {
-          editor.Canvas?.refresh?.();
-        } catch (err) {
-          // Ignore refresh canvas errors
+        const editor = editorRef.current;
+        if (editor) {
+          try {
+            editor.Canvas?.refresh?.();
+          } catch (err) {
+            // Ignore refresh canvas errors
+          }
         }
-      }
 
-      updateSelectionCoordinates();
+        updateSelectionCoordinates();
 
-      const selected = selectedComponentRef.current;
-      if (isTextLinkDialogOpenRef.current || !isStrictTextComponent(selected)) {
-        setIsCustomRteToolbarVisible(false);
-        setCustomRteToolbarPos(null);
-        return;
-      }
-      const pos = computeCustomToolbarPosition();
-      if (pos) {
-        setCustomRteToolbarPos(pos);
-        setIsCustomRteToolbarVisible(true);
-      } else {
-        setIsCustomRteToolbarVisible(false);
-        setCustomRteToolbarPos(null);
-      }
+        const selected = selectedComponentRef.current;
+        if (isTextLinkDialogOpenRef.current || !isStrictTextComponent(selected)) {
+          setIsCustomRteToolbarVisible(false);
+          setCustomRteToolbarPos(null);
+          return;
+        }
+        const pos = computeCustomToolbarPosition();
+        if (pos) {
+          setCustomRteToolbarPos(pos);
+          setIsCustomRteToolbarVisible(true);
+        } else {
+          setIsCustomRteToolbarVisible(false);
+          setCustomRteToolbarPos(null);
+        }
+      });
     });
   };
 
@@ -2315,6 +2329,17 @@ export function LayoutTemplateEditor({
       ]);
     }
   };
+
+  // Close all toolbars and dialogs when the user navigates to a different page
+  useEffect(() => {
+    setIsCustomRteToolbarVisible(false);
+    setCustomRteToolbarPos(null);
+    setIsTextLinkDialogOpen(false);
+    setIsImageLinkDialogOpen(false);
+    linkDialogContextRef.current = null;
+    imageLinkDialogComponentRef.current = null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -4436,7 +4461,7 @@ export function LayoutTemplateEditor({
         `}</style>
 
         {/* ── Custom React-based floating RTE toolbar ── */}
-        {isCustomRteToolbarVisible && customRteToolbarPos && !isTextLinkDialogOpen && (
+        {isCustomRteToolbarVisible && customRteToolbarPos && !isTextLinkDialogOpen && !previewMode && (
           <div
             id="custom-rte-floating-toolbar"
             onMouseDown={(e) => {
@@ -4579,7 +4604,12 @@ export function LayoutTemplateEditor({
               type="button"
               title="Insert link"
               style={btnStyle}
-              onClick={() => {
+              onMouseDown={(e) => {
+                // Use onMouseDown to open the link modal before the browser's focusout
+                // event fires and collapses the selection. This fixes the double-click
+                // requirement on the link button.
+                e.preventDefault();
+                e.stopPropagation();
                 const selection = prepareRteSelection();
                 const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null;
                 const currentHref = getAnchorHrefFromRange(range);
