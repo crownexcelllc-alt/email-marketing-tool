@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
@@ -189,6 +190,9 @@ export function CampaignHistoryDetailsPanel({
           <SheetTitle className="text-xl font-bold tracking-tight">
             History Details - <span className="text-blue-400">{campaign?.name}</span>
           </SheetTitle>
+          <SheetDescription className="sr-only">
+            Detailed information about the campaign's recipients, delivery, and interaction metrics.
+          </SheetDescription>
         </SheetHeader>
 
         {/* Metric Cards Grid */}
@@ -197,7 +201,7 @@ export function CampaignHistoryDetailsPanel({
             onClick={() => handleFilterChange('all')}
             className={`flex flex-col items-center justify-between p-3 rounded-xl border transition-all text-center ${
               filter === 'all'
-                ? 'border-blue-500 bg-blue-950/20 text-zinc-100 shadow-lg shadow-blue-950/10'
+                ? 'border-blue-500 bg-zinc-100 text-zinc-100 shadow-lg shadow-blue-950/10'
                 : 'border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200'
             }`}
           >
@@ -212,7 +216,7 @@ export function CampaignHistoryDetailsPanel({
             onClick={() => handleFilterChange('sent')}
             className={`flex flex-col items-center justify-between p-3 rounded-xl border transition-all text-center ${
               filter === 'sent'
-                ? 'border-blue-500 bg-blue-950/20 text-zinc-100 shadow-lg shadow-blue-950/10'
+                ? 'border-blue-500 bg-zinc-100 text-zinc-100 shadow-lg shadow-blue-950/10'
                 : 'border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200'
             }`}
           >
@@ -227,7 +231,7 @@ export function CampaignHistoryDetailsPanel({
             onClick={() => handleFilterChange('pending')}
             className={`flex flex-col items-center justify-between p-3 rounded-xl border transition-all text-center ${
               filter === 'pending'
-                ? 'border-blue-500 bg-blue-950/20 text-zinc-100 shadow-lg shadow-blue-950/10'
+                ? 'border-blue-500 bg-zinc-100 text-zinc-100 shadow-lg shadow-blue-950/10'
                 : 'border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200'
             }`}
           >
@@ -242,7 +246,7 @@ export function CampaignHistoryDetailsPanel({
             onClick={() => handleFilterChange('opened')}
             className={`flex flex-col items-center justify-between p-3 rounded-xl border transition-all text-center ${
               filter === 'opened'
-                ? 'border-blue-500 bg-blue-950/20 text-zinc-100 shadow-lg shadow-blue-950/10'
+                ? 'border-blue-500 bg-zinc-100 text-zinc-100 shadow-lg shadow-blue-950/10'
                 : 'border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200'
             }`}
           >
@@ -257,7 +261,7 @@ export function CampaignHistoryDetailsPanel({
             onClick={() => handleFilterChange('clicked')}
             className={`flex flex-col items-center justify-between p-3 rounded-xl border transition-all text-center ${
               filter === 'clicked'
-                ? 'border-blue-500 bg-blue-950/20 text-zinc-100 shadow-lg shadow-blue-950/10'
+                ? 'border-blue-500 bg-zinc-100 text-zinc-100 shadow-lg shadow-blue-950/10'
                 : 'border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200'
             }`}
           >
@@ -272,7 +276,7 @@ export function CampaignHistoryDetailsPanel({
             onClick={() => handleFilterChange('notOpened')}
             className={`flex flex-col items-center justify-between p-3 rounded-xl border transition-all text-center ${
               filter === 'notOpened'
-                ? 'border-blue-500 bg-blue-950/20 text-zinc-100 shadow-lg shadow-blue-950/10'
+                ? 'border-blue-500 bg-zinc-100 text-zinc-100 shadow-lg shadow-blue-950/10'
                 : 'border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200'
             }`}
           >
@@ -283,6 +287,7 @@ export function CampaignHistoryDetailsPanel({
             </span>
           </button>
         </div>
+
 
         {/* Filter and Search Bar */}
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
@@ -322,14 +327,14 @@ export function CampaignHistoryDetailsPanel({
             </TableHeader>
             <TableBody>
               {items.length === 0 ? (
-                <TableRow>
+                <TableRow className="hover:bg-transparent">
                   <TableCell colSpan={4} className="h-48 text-center text-zinc-500">
                     No contacts found in this list.
                   </TableCell>
                 </TableRow>
               ) : (
                 items.map((item) => (
-                  <TableRow key={item.id} className="border-b border-zinc-850 hover:bg-zinc-900/30 transition-colors">
+                  <TableRow key={item.id} className="border-b border-zinc-850 hover:bg-transparent transition-colors">
                     <TableCell className="font-medium text-zinc-200">{item.name || '-'}</TableCell>
                     <TableCell className="text-zinc-450">{item.email}</TableCell>
                     <TableCell>{renderStatusBadge(item)}</TableCell>

@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -491,6 +492,9 @@ export default function TemplatesPage() {
         <DialogContent className="max-w-3xl border-slate-200 bg-white text-slate-900">
           <DialogHeader>
             <DialogTitle>New Template</DialogTitle>
+            <DialogDescription className="sr-only">
+              Create a new email template using layout presets or an HTML editor.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-5">
             <div className="grid gap-4 md:grid-cols-2">
