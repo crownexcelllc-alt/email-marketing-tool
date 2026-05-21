@@ -15,6 +15,8 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useAuthStore } from '@/lib/stores/auth-store';
+import type { AuthUser } from '@/lib/types/auth';
 import type { SenderAccount } from '@/lib/types/sender-account';
 import {
   createSenderAccountSchema,
@@ -31,17 +33,20 @@ interface SenderAccountFormDialogProps {
   onRevealSmtpPassword?: (accountId: string) => Promise<string>;
 }
 
-function getDefaultValues(account?: SenderAccount | null): SenderAccountFormValues {
+function getDefaultValues(
+  account?: SenderAccount | null,
+  user?: AuthUser | null,
+): SenderAccountFormValues {
   if (!account) {
     return {
       type: 'email',
-      name: '',
+      name: user?.fullName || 'Primary Sender',
       status: 'active',
-      email: '',
+      email: user?.email || '',
       providerType: '',
       smtpHost: '',
       smtpPort: 587,
-      smtpUser: '',
+      smtpUser: user?.email || '',
       smtpPass: '',
       secure: false,
       dailyLimit: undefined,
@@ -99,11 +104,12 @@ export function SenderAccountFormDialog({
   onRevealSmtpPassword,
 }: SenderAccountFormDialogProps) {
   const secretMask = '********';
+  const user = useAuthStore((state) => state.user);
   const isEdit = Boolean(account);
   const schema = isEdit ? updateSenderAccountSchema : createSenderAccountSchema;
   const form = useForm<SenderAccountFormValues>({
     resolver: zodResolver(schema) as never,
-    defaultValues: getDefaultValues(account),
+    defaultValues: getDefaultValues(account, user),
   });
   const [showSmtpPassword, setShowSmtpPassword] = useState(false);
   const [isRevealingSmtpPassword, setIsRevealingSmtpPassword] = useState(false);
@@ -114,11 +120,26 @@ export function SenderAccountFormDialog({
   }) as SenderAccountFormValues['type'] | undefined;
   const selectedType = type ?? account?.type ?? 'email';
 
+  const smtpPort = useWatch({
+    control: form.control,
+    name: 'smtpPort',
+  });
+
   useEffect(() => {
-    form.reset(getDefaultValues(account));
+    if (selectedType === 'email' && smtpPort) {
+      if (smtpPort === 465) {
+        form.setValue('secure', true);
+      } else if (smtpPort === 587) {
+        form.setValue('secure', false);
+      }
+    }
+  }, [smtpPort, selectedType, form]);
+
+  useEffect(() => {
+    form.reset(getDefaultValues(account, user));
     setShowSmtpPassword(false);
     setIsRevealingSmtpPassword(false);
-  }, [account, form, open]);
+  }, [account, form, open, user]);
 
   const handleSmtpPasswordVisibilityToggle = async () => {
     if (showSmtpPassword) {
@@ -164,7 +185,7 @@ export function SenderAccountFormDialog({
 
   const handleSubmit = form.handleSubmit(async (values) => {
     await onSubmit(values);
-    form.reset(getDefaultValues(null));
+    form.reset(getDefaultValues(null, user));
   });
 
   return (
@@ -228,6 +249,7 @@ export function SenderAccountFormDialog({
                   <Input
                     id="email"
                     type="email"
+                    autoComplete="email"
                     className="border-zinc-800 bg-zinc-900 text-zinc-100"
                     {...form.register('email')}
                   />
@@ -266,6 +288,7 @@ export function SenderAccountFormDialog({
                   <Label htmlFor="smtpUser">SMTP User</Label>
                   <Input
                     id="smtpUser"
+                    autoComplete="off"
                     className="border-zinc-800 bg-zinc-900 text-zinc-100"
                     {...form.register('smtpUser')}
                   />
@@ -277,6 +300,7 @@ export function SenderAccountFormDialog({
                     <Input
                       id="smtpPass"
                       type={showSmtpPassword ? 'text' : 'password'}
+                      autoComplete="new-password"
                       className="border-zinc-800 bg-zinc-900 pr-10 text-zinc-100"
                       {...form.register('smtpPass')}
                     />
@@ -372,6 +396,7 @@ export function SenderAccountFormDialog({
                   <Input
                     id="accessToken"
                     type="password"
+                    autoComplete="new-password"
                     className="border-zinc-800 bg-zinc-900 text-zinc-100"
                     {...form.register('accessToken')}
                   />
@@ -384,6 +409,7 @@ export function SenderAccountFormDialog({
                   <Input
                     id="webhookVerifyToken"
                     type="password"
+                    autoComplete="new-password"
                     className="border-zinc-800 bg-zinc-900 text-zinc-100"
                     {...form.register('webhookVerifyToken')}
                   />

@@ -206,10 +206,14 @@ export async function updateSenderAccount(
   id: string,
   values: SenderAccountFormValues,
 ): Promise<SenderAccount> {
+  const data = buildPayload(values);
+  delete data.workspaceId;
+  delete data.channelType;
+
   const payload = await apiRequest<unknown, Record<string, unknown>>({
     method: 'PATCH',
     url: `/sender-accounts/${id}`,
-    data: buildPayload(values),
+    data,
   });
 
   return normalizeSenderAccount(payload);

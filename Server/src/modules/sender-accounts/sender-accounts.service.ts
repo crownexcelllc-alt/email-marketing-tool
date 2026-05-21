@@ -1,4 +1,4 @@
-﻿import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Transporter, createTransport } from 'nodemailer';
 import { Model, Types } from 'mongoose';
@@ -300,7 +300,7 @@ export class SenderAccountsService {
     const transporter: Transporter = createTransport({
       host: account.email.smtpHost,
       port: account.email.smtpPort,
-      secure: account.email.secure,
+      secure: account.email.smtpPort === 465,
       auth: {
         user: account.email.smtpUser,
         pass: smtpPass,

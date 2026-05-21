@@ -172,7 +172,7 @@ export class EmailService {
       .updateOne(
         {
           _id: context.recipient._id,
-          status: { $in: [CampaignRecipientStatus.QUEUED, CampaignRecipientStatus.SENDING] }
+          status: { $in: [CampaignRecipientStatus.QUEUED, CampaignRecipientStatus.SENDING] },
         },
         {
           $set: {
@@ -235,7 +235,7 @@ export class EmailService {
         .updateOne(
           {
             _id: context.recipient._id,
-            status: CampaignRecipientStatus.SENDING
+            status: CampaignRecipientStatus.SENDING,
           },
           {
             $set: {
@@ -577,7 +577,7 @@ export class EmailService {
     const transportOptions: SMTPTransport.Options = {
       host: emailConfig.smtpHost,
       port: emailConfig.smtpPort,
-      secure: emailConfig.secure,
+      secure: emailConfig.smtpPort === 465,
       auth: {
         user: emailConfig.smtpUser,
         pass: smtpPass,
@@ -615,7 +615,7 @@ export class EmailService {
       lastName: context.contact.lastName,
       fullName: context.contact.fullName,
       email: context.contact.email,
-      phone: context.contact.phone,   // "Mobile" field in Add Contact form
+      phone: context.contact.phone, // "Mobile" field in Add Contact form
       company: context.contact.company,
       category: context.contact.category,
       labels: context.contact.labels,
@@ -626,7 +626,7 @@ export class EmailService {
       designation: context.contact.customFields?.designation ?? '',
       department: context.contact.customFields?.department ?? '',
       city: context.contact.customFields?.city ?? '',
-      leadSource: context.contact.customFields?.leadSource ?? '',  // "Source" field in Add Contact form
+      leadSource: context.contact.customFields?.leadSource ?? '', // "Source" field in Add Contact form
       // Raw customFields object (for advanced access)
       customFields: context.contact.customFields,
       // Campaign context
@@ -725,18 +725,20 @@ export class EmailService {
     if (processed >= total && total > 0) {
       campaign.status = CampaignStatus.COMPLETED;
       campaign.stats.queuedRecipients = 0;
-      await this.campaignModel.updateOne(
-        {
-          _id: campaignId,
-          status: CampaignStatus.RUNNING,
-        },
-        {
-          $set: {
-            status: CampaignStatus.COMPLETED,
-            'stats.queuedRecipients': 0,
+      await this.campaignModel
+        .updateOne(
+          {
+            _id: campaignId,
+            status: CampaignStatus.RUNNING,
           },
-        },
-      ).exec();
+          {
+            $set: {
+              status: CampaignStatus.COMPLETED,
+              'stats.queuedRecipients': 0,
+            },
+          },
+        )
+        .exec();
     }
   }
 
