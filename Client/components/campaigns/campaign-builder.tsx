@@ -893,10 +893,23 @@ export function CampaignBuilder() {
                     })
                   }
                 >
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="line-clamp-1 text-xs font-medium text-zinc-200">{template.name}</p>
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <p className="line-clamp-1 text-xs font-medium text-zinc-200">{template.name}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {template.isCopy ? (
+                          <Badge variant="warning" className="text-[10px] px-1.5 py-0 font-semibold uppercase tracking-wider">
+                            Copy {template.copyNumber ?? 1}
+                          </Badge>
+                        ) : (
+                          <Badge variant="success" className="text-[10px] px-1.5 py-0 font-semibold uppercase tracking-wider">
+                            Original
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
                     <span
-                      className={`inline-flex h-5 w-5 items-center justify-center rounded-full border ${
+                      className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
                         watchedTemplateId === template.id
                           ? 'border-emerald-400 bg-emerald-400/20'
                           : 'border-zinc-500 bg-transparent'
