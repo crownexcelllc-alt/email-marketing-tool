@@ -5,6 +5,7 @@ import type {
   CampaignBuilderValues,
   CampaignsListResult,
   CampaignsPagination,
+  CampaignRecipientDetailsResult,
 } from '@/lib/types/campaign';
 
 function getRecord(input: unknown): Record<string, unknown> | null {
@@ -125,12 +126,14 @@ function normalizeCampaign(input: unknown): Campaign {
       ? record.contactIds.filter((value): value is string => typeof value === 'string')
       : [],
     templateId: getString(record, ['templateId']),
+    templateName: getString(record, ['templateName']) ?? null,
+    templateSubject: getString(record, ['templateSubject']) ?? null,
     status: getString(record, ['status']),
     timezone: getString(record, ['timezone']),
     startAt: getString(record, ['startAt']) ?? null,
     sendingWindowStart: getString(record, ['sendingWindowStart']) ?? null,
     sendingWindowEnd: getString(record, ['sendingWindowEnd']) ?? null,
-        dailyCap: getNumber(record, ['dailyCap']) ?? null,
+    dailyCap: getNumber(record, ['dailyCap']) ?? null,
     editedAt: getString(record, ['editedAt']) ?? null,
     copyNumber: getNumber(record, ['copyNumber']) ?? 0,
     createdAt: getString(record, ['createdAt']),
@@ -353,4 +356,17 @@ export async function resumeCampaign(campaignId: string): Promise<Campaign> {
   });
 
   return normalizeCampaign(payload);
+}
+
+export async function getCampaignRecipientDetails(
+  campaignId: string,
+  params: { page?: number; limit?: number; filter?: string; search?: string } = {},
+): Promise<CampaignRecipientDetailsResult> {
+  const payload = await apiRequest<unknown>({
+    method: 'GET',
+    url: `/campaigns/${campaignId}/recipient-details`,
+    params,
+  });
+
+  return payload as CampaignRecipientDetailsResult;
 }

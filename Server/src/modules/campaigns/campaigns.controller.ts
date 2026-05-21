@@ -9,6 +9,7 @@ import { CreateCampaignDto } from './dto/create-campaign.dto';
 import { ListCampaignAudienceDto } from './dto/list-campaign-audience.dto';
 import { ListCampaignsDto } from './dto/list-campaigns.dto';
 import { UpdateCampaignDto } from './dto/update-campaign.dto';
+import { ListCampaignRecipientDetailsDto } from './dto/list-campaign-recipient-details.dto';
 import { CampaignListResponse, CampaignResponse } from './types/campaign.response';
 import { ContactListResponse } from '../contacts/types/contact.response';
 
@@ -40,6 +41,15 @@ export class CampaignsController {
     @CurrentUser() authUser: AuthUser,
   ): Promise<ContactListResponse> {
     return this.campaignsService.findAudience(id, query, authUser);
+  }
+
+  @Get(':id/recipient-details')
+  findRecipientDetails(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Query() query: ListCampaignRecipientDetailsDto,
+    @CurrentUser() authUser: AuthUser,
+  ) {
+    return this.campaignsService.findRecipientDetails(id, query, authUser);
   }
 
   @Get(':id')

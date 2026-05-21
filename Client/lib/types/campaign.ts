@@ -29,6 +29,8 @@ export interface Campaign {
   segmentId?: string | null;
   contactIds: string[];
   templateId?: string;
+  templateName?: string | null;
+  templateSubject?: string | null;
   status?: string;
   timezone?: string;
   startAt?: string | null;
@@ -66,4 +68,34 @@ export interface CampaignsPagination {
 export interface CampaignsListResult {
   items: Campaign[];
   pagination: CampaignsPagination;
+}
+
+export interface CampaignRecipientDetail {
+  id: string;
+  contactId: string;
+  name: string;
+  email: string;
+  status: string;
+  sentAt: string | null;
+  openedAt: string | null;
+  clickedAt: string | null;
+}
+
+export interface CampaignRecipientDetailsResult {
+  summary: {
+    sent: number;
+    pending: number;
+    opened: number;
+    clicked: number;
+    notOpened: number;
+  };
+  items: CampaignRecipientDetail[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrevious: boolean;
+  };
 }

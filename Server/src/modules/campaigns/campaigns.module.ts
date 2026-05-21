@@ -14,6 +14,7 @@ import { CampaignRecipient, CampaignRecipientSchema } from './schemas/campaign-r
 import { Campaign, CampaignSchema } from './schemas/campaign.schema';
 import { CampaignsController } from './campaigns.controller';
 import { CampaignsService } from './campaigns.service';
+import { ContactActivity, ContactActivitySchema } from '../tracking/schemas/contact-activity.schema';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { CampaignsService } from './campaigns.service';
       { name: Template.name, schema: TemplateSchema },
       { name: Segment.name, schema: SegmentSchema },
       { name: Contact.name, schema: ContactSchema },
+      { name: ContactActivity.name, schema: ContactActivitySchema },
     ]),
   ],
   controllers: [CampaignsController],

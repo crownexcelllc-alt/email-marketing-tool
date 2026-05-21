@@ -30,6 +30,9 @@ import { Campaign, CampaignDocument } from './schemas/campaign.schema';
 import { CampaignRecipient } from './schemas/campaign-recipient.schema';
 import { CampaignListResponse, CampaignResponse } from './types/campaign.response';
 import { ContactListResponse, ContactResponse } from '../contacts/types/contact.response';
+import { ContactActivity } from '../tracking/schemas/contact-activity.schema';
+import { TrackingEventType } from '../tracking/constants/tracking.enums';
+import { ListCampaignRecipientDetailsDto } from './dto/list-campaign-recipient-details.dto';
 
 @Injectable()
 export class CampaignsService {
@@ -46,6 +49,8 @@ export class CampaignsService {
     private readonly segmentModel: Model<Segment>,
     @InjectModel(Contact.name)
     private readonly contactModel: Model<Contact>,
+    @InjectModel(ContactActivity.name)
+    private readonly contactActivityModel: Model<ContactActivity>,
     private readonly workspacesService: WorkspacesService,
     private readonly queueService: QueueService,
     private readonly campaignDistributionService: CampaignDistributionService,
@@ -108,6 +113,7 @@ export class CampaignsService {
       },
     });
 
+    await created.populate('templateId');
     return this.toResponse(created);
   }
 
@@ -138,6 +144,7 @@ export class CampaignsService {
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
+        .populate('templateId')
         .exec(),
       this.campaignModel.countDocuments(filter).exec(),
     ]);
@@ -211,6 +218,247 @@ export class CampaignsService {
 
     return {
       items: items.map((item) => this.toContactResponse(item)),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrevious: page > 1,
+      },
+    };
+  }
+
+  async findRecipientDetails(
+    campaignId: string,
+    query: ListCampaignRecipientDetailsDto,
+    authUser: AuthUser,
+  ) {
+    const campaign = await this.findOwnedCampaign(campaignId, authUser);
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const workspaceId = campaign.workspaceId;
+
+    const [openedContactIds, clickedContactIds] = await Promise.all([
+      this.contactActivityModel
+        .distinct('contactId', {
+          campaignId: campaign._id,
+          eventType: TrackingEventType.OPEN,
+        })
+        .exec(),
+      this.contactActivityModel
+        .distinct('contactId', {
+          campaignId: campaign._id,
+          eventType: TrackingEventType.CLICK,
+        })
+        .exec(),
+    ]);
+
+    const openedSet = new Set(openedContactIds.map((id) => id.toString()));
+    const clickedSet = new Set(clickedContactIds.map((id) => id.toString()));
+
+    const [sentCount, pendingCount, notOpenedCount] = await Promise.all([
+      this.campaignRecipientModel
+        .countDocuments({
+          campaignId: campaign._id,
+          status: CampaignRecipientStatus.SENT,
+        })
+        .exec(),
+      this.campaignRecipientModel
+        .countDocuments({
+          campaignId: campaign._id,
+          status: {
+            $in: [
+              CampaignRecipientStatus.PENDING,
+              CampaignRecipientStatus.QUEUED,
+              CampaignRecipientStatus.SENDING,
+            ],
+          },
+        })
+        .exec(),
+      this.campaignRecipientModel
+        .countDocuments({
+          campaignId: campaign._id,
+          status: CampaignRecipientStatus.SENT,
+          contactId: { $nin: openedContactIds },
+        })
+        .exec(),
+    ]);
+
+    const summary = {
+      sent: sentCount,
+      pending: pendingCount,
+      opened: openedSet.size,
+      clicked: clickedSet.size,
+      notOpened: notOpenedCount,
+    };
+
+    const filterQuery: Record<string, any> = {
+      campaignId: campaign._id,
+    };
+
+    const tab = query.filter || 'sent';
+
+    if (tab === 'sent') {
+      filterQuery.status = CampaignRecipientStatus.SENT;
+    } else if (tab === 'pending') {
+      filterQuery.status = {
+        $in: [
+          CampaignRecipientStatus.PENDING,
+          CampaignRecipientStatus.QUEUED,
+          CampaignRecipientStatus.SENDING,
+        ],
+      };
+    } else if (tab === 'opened') {
+      filterQuery.status = CampaignRecipientStatus.SENT;
+      filterQuery.contactId = { $in: openedContactIds };
+    } else if (tab === 'clicked') {
+      filterQuery.status = CampaignRecipientStatus.SENT;
+      filterQuery.contactId = { $in: clickedContactIds };
+    } else if (tab === 'notOpened') {
+      filterQuery.status = CampaignRecipientStatus.SENT;
+      filterQuery.contactId = { $nin: openedContactIds };
+    }
+
+    if (query.search?.trim()) {
+      const searchReg = new RegExp(this.escapeRegex(query.search.trim()), 'i');
+      const contacts = await this.contactModel
+        .find({
+          workspaceId,
+          $or: [
+            { firstName: searchReg },
+            { lastName: searchReg },
+            { email: searchReg },
+            { phone: searchReg },
+          ],
+        })
+        .select('_id')
+        .lean()
+        .exec();
+
+      const matchedContactIds = contacts.map((c) => c._id);
+      
+      if (filterQuery.contactId) {
+        if (filterQuery.contactId.$in) {
+          const existingIn = new Set(filterQuery.contactId.$in.map((id: any) => id.toString()));
+          const intersected = matchedContactIds.filter((id) => existingIn.has(id.toString()));
+          filterQuery.contactId = { $in: intersected };
+        } else if (filterQuery.contactId.$nin) {
+          const existingNin = new Set(filterQuery.contactId.$nin.map((id: any) => id.toString()));
+          const filtered = matchedContactIds.filter((id) => !existingNin.has(id.toString()));
+          filterQuery.contactId = { $in: filtered };
+        }
+      } else {
+        filterQuery.contactId = { $in: matchedContactIds };
+      }
+    }
+
+    const [recipients, total] = await Promise.all([
+      this.campaignRecipientModel
+        .find(filterQuery)
+        .sort({ updatedAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .populate('contactId')
+        .exec(),
+      this.campaignRecipientModel.countDocuments(filterQuery).exec(),
+    ]);
+
+    // Resolve contacts that were not populated (null contactId)
+    const nullContactRecipients = recipients.filter((r) => !r.contactId);
+    const resolvedContactsMap = new Map<string, any>();
+    if (nullContactRecipients.length > 0) {
+      const addresses = nullContactRecipients.map((r) => r.address).filter(Boolean);
+      if (addresses.length > 0) {
+        const contacts = await this.contactModel
+          .find({
+            workspaceId,
+            $or: [
+              { email: { $in: addresses } },
+              { emailNormalized: { $in: addresses } },
+              { phone: { $in: addresses } },
+              { phoneNormalized: { $in: addresses } },
+            ],
+          })
+          .lean()
+          .exec();
+        for (const contactObj of contacts) {
+          if (contactObj.email) {
+            resolvedContactsMap.set(contactObj.email.toLowerCase(), contactObj);
+          }
+          if (contactObj.emailNormalized) {
+            resolvedContactsMap.set(contactObj.emailNormalized.toLowerCase(), contactObj);
+          }
+          if (contactObj.phone) {
+            resolvedContactsMap.set(contactObj.phone, contactObj);
+          }
+          if (contactObj.phoneNormalized) {
+            resolvedContactsMap.set(contactObj.phoneNormalized, contactObj);
+          }
+        }
+      }
+    }
+
+    // Prepare contact IDs to fetch activities
+    const contactIdsOnPage: Types.ObjectId[] = [];
+    const resolvedItems = recipients.map((recipient) => {
+      let contactObj = recipient.contactId as any;
+      if (!contactObj && recipient.address) {
+        contactObj = resolvedContactsMap.get(recipient.address.toLowerCase());
+      }
+      if (contactObj && contactObj._id) {
+        contactIdsOnPage.push(contactObj._id);
+      }
+      return {
+        recipient,
+        contactObj,
+      };
+    });
+
+    const activities = await this.contactActivityModel
+      .find({
+        campaignId: campaign._id,
+        contactId: { $in: contactIdsOnPage },
+      })
+      .lean()
+      .exec();
+
+    const activityMap = new Map<string, Record<string, Date>>();
+    for (const act of activities) {
+      const cId = act.contactId.toString();
+      if (!activityMap.has(cId)) {
+        activityMap.set(cId, {});
+      }
+      activityMap.get(cId)![act.eventType] = act.occurredAt;
+    }
+
+    const items = resolvedItems.map(({ recipient, contactObj }) => {
+      const cId = contactObj?._id?.toString() || '';
+      const act = activityMap.get(cId) || {};
+
+      let name = '';
+      if (contactObj) {
+        name = (contactObj.fullName || '').trim() ||
+          `${contactObj.firstName || ''} ${contactObj.lastName || ''}`.trim();
+      }
+
+      return {
+        id: recipient._id.toString(),
+        contactId: cId,
+        name: name,
+        email: contactObj?.email || recipient.address,
+        status: recipient.status,
+        sentAt: recipient.sentAt,
+        openedAt: act.open || null,
+        clickedAt: act.click || null,
+      };
+    });
+
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+
+    return {
+      summary,
+      items,
       pagination: {
         page,
         limit,
@@ -339,7 +587,11 @@ export class CampaignsService {
       campaign.senderAccountIds,
       false,
     );
-    await this.validateTemplateOwnership(workspaceId, campaign.channel, campaign.templateId);
+    await this.validateTemplateOwnership(
+      workspaceId,
+      campaign.channel,
+      campaign.populated('templateId') || campaign.templateId?._id || campaign.templateId,
+    );
     await this.validateSegmentOwnership(workspaceId, campaign.segmentId);
     await this.validateContactsOwnership(workspaceId, campaign.contactIds);
 
@@ -353,7 +605,7 @@ export class CampaignsService {
           senderAccountIds: campaign.senderAccountIds,
           segmentId: campaign.segmentId,
           contactIds: campaign.contactIds,
-          templateId: campaign.templateId,
+          templateId: campaign.populated('templateId') || campaign.templateId?._id || campaign.templateId,
           timezone: campaign.timezone,
           startAt: campaign.startAt,
           sendingWindowStart: campaign.sendingWindowStart,
@@ -368,7 +620,7 @@ export class CampaignsService {
         },
       },
       { returnDocument: 'after' },
-    ).exec();
+    ).populate('templateId').exec();
     return this.toResponse(saved || campaign);
   }
 
@@ -396,7 +648,7 @@ export class CampaignsService {
       senderAccountIds: original.senderAccountIds,
       segmentId: original.segmentId,
       contactIds: original.contactIds,
-      templateId: original.templateId,
+      templateId: original.populated('templateId') || original.templateId?._id || original.templateId,
       status: CampaignStatus.DRAFT,
       timezone: original.timezone ?? 'UTC',
       startAt: null,
@@ -435,6 +687,7 @@ export class CampaignsService {
       copyNumber,
     });
 
+    await duplicated.populate('templateId');
     return this.toResponse(duplicated);
   }
 
@@ -442,7 +695,11 @@ export class CampaignsService {
     const campaign = await this.findOwnedCampaign(id, authUser);
     const workspaceId = campaign.workspaceId.toString();
 
-    await this.validateTemplateOwnership(workspaceId, campaign.channel, campaign.templateId);
+    await this.validateTemplateOwnership(
+      workspaceId,
+      campaign.channel,
+      campaign.populated('templateId') || campaign.templateId?._id || campaign.templateId,
+    );
     await this.validateSegmentOwnership(workspaceId, campaign.segmentId);
     await this.validateContactsOwnership(workspaceId, campaign.contactIds);
 
@@ -742,6 +999,7 @@ export class CampaignsService {
         _id: this.toObjectId(id, 'INVALID_CAMPAIGN_ID'),
         workspaceId: this.toObjectId(workspaceId, 'INVALID_WORKSPACE_ID'),
       })
+      .populate('templateId')
       .exec();
 
     if (!campaign) {
@@ -926,6 +1184,15 @@ export class CampaignsService {
   }
 
   private toResponse(campaign: CampaignDocument): CampaignResponse {
+    const templateObj = campaign.templateId as any;
+    const isPopulated = templateObj && typeof templateObj === 'object' && 'name' in templateObj;
+    const rawTemplateId = campaign.populated('templateId') || campaign.templateId;
+    const templateIdStr = rawTemplateId ? rawTemplateId.toString() : '';
+    const templateName = isPopulated ? templateObj.name : null;
+    const templateSubject = isPopulated
+      ? (templateObj.email?.subject || templateObj.whatsapp?.templateName || null)
+      : null;
+
     return {
       id: campaign.id,
       workspaceId: campaign.workspaceId.toString(),
@@ -934,7 +1201,9 @@ export class CampaignsService {
       senderAccountIds: campaign.senderAccountIds.map((id) => id.toString()),
       segmentId: campaign.segmentId ? campaign.segmentId.toString() : null,
       contactIds: campaign.contactIds.map((id) => id.toString()),
-      templateId: campaign.templateId.toString(),
+      templateId: templateIdStr,
+      templateName,
+      templateSubject,
       status: campaign.status,
       timezone: campaign.timezone,
       startAt: campaign.startAt,
@@ -1044,10 +1313,12 @@ export class CampaignsService {
   }
 
   private objectIdsEqual(
-    left: Types.ObjectId | null | undefined,
-    right: Types.ObjectId | null | undefined,
+    left: any,
+    right: any,
   ): boolean {
-    return (left?.toString() ?? null) === (right?.toString() ?? null);
+    const leftId = left?._id ? left._id.toString() : (left?.toString() ?? null);
+    const rightId = right?._id ? right._id.toString() : (right?.toString() ?? null);
+    return leftId === rightId;
   }
 
   private objectIdArraysEqual(left: Types.ObjectId[], right: Types.ObjectId[]): boolean {

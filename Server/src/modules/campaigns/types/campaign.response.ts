@@ -13,6 +13,8 @@ export interface CampaignResponse {
   segmentId: string | null;
   contactIds: string[];
   templateId: string;
+  templateName?: string | null;
+  templateSubject?: string | null;
   status: CampaignStatus;
   timezone: string;
   startAt: Date | null;

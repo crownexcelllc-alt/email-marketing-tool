@@ -21,6 +21,7 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { CampaignEditRerunDialog } from '@/components/campaigns/campaign-edit-rerun-dialog';
+import { CampaignHistoryDetailsPanel } from '@/components/campaigns/campaign-history-details-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -110,6 +111,7 @@ interface CampaignCardProps {
   onDuplicate: (campaign: Campaign) => void;
   isDuplicating: boolean;
   onSuccess: () => void;
+  onShowHistoryDetails: (campaign: Campaign) => void;
 }
 
 function CampaignCard({
@@ -119,6 +121,7 @@ function CampaignCard({
   onDuplicate,
   isDuplicating,
   onSuccess,
+  onShowHistoryDetails,
 }: CampaignCardProps) {
   const template = campaign.templateId ? templateMap.get(campaign.templateId) : undefined;
   const stats = campaign.stats ?? {};
@@ -313,6 +316,17 @@ function CampaignCard({
 
           {/* Right: action buttons */}
           <div className="flex items-center gap-2">
+            {isCompleted && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50"
+                onClick={() => onShowHistoryDetails(campaign)}
+              >
+                <BarChart2 className="h-3.5 w-3.5" />
+                History Details
+              </Button>
+            )}
             {campaign.status === 'draft' ? (
               <Button
                 size="sm"
@@ -348,24 +362,22 @@ function CampaignCard({
             {renderAudience()}
 
             {/* Template — always latest version */}
-            {template ? (
+            {campaign.templateId ? (
               <div className="flex items-start gap-1.5 text-xs text-zinc-500">
                 <Tag className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-400" />
-                <div>
-                  <span className="text-zinc-400">Template: </span>
-                  <span className="font-medium text-zinc-700">{template.name}</span>
-                  {template.subject && (
-                    <p className="mt-0.5 line-clamp-1 text-zinc-400">{template.subject}</p>
-                  )}
-                  <p className="mt-0.5 italic text-zinc-400">
-                    (Always reflects the latest template version)
+                <div className="space-y-1">
+                  <p className="line-clamp-1">
+                    <span className="text-zinc-400">Template: </span>
+                    <span className="font-medium text-zinc-700">{template?.name || campaign.templateName || 'Unnamed Template'}</span>
+                  </p>
+                  <p className="line-clamp-1">
+                    <span className="text-zinc-400">Subject: </span>
+                    <span className="font-medium text-zinc-700">{template?.subject || campaign.templateSubject || template?.name || campaign.templateName || 'Unnamed Template'}</span>
+                  </p>
+                  <p className="italic text-zinc-400">
+                    (Always reflects the latest template version automatically)
                   </p>
                 </div>
-              </div>
-            ) : campaign.templateId ? (
-              <div className="flex items-center gap-1.5 text-xs text-zinc-400">
-                <Tag className="h-3.5 w-3.5 shrink-0" />
-                Template ID: {campaign.templateId.slice(0, 12)}…
               </div>
             ) : null}
 
@@ -486,6 +498,8 @@ export default function SegmentsPage() {
   const [total, setTotal] = useState(0);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [historyCampaign, setHistoryCampaign] = useState<Campaign | null>(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const load = useCallback(async (pageNum: number, isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -634,6 +648,10 @@ export default function SegmentsPage() {
               onDuplicate={handleDuplicate}
               isDuplicating={duplicatingId === campaign.id}
               onSuccess={() => void load(page, true)}
+              onShowHistoryDetails={(c) => {
+                setHistoryCampaign(c);
+                setIsHistoryOpen(true);
+              }}
             />
           ))}
         </div>
@@ -674,6 +692,13 @@ export default function SegmentsPage() {
           if (!open) setEditingCampaign(null);
         }}
         onSuccess={() => void load(page, true)}
+      />
+
+      {/* History Details Side Panel */}
+      <CampaignHistoryDetailsPanel
+        open={isHistoryOpen}
+        campaign={historyCampaign}
+        onOpenChange={setIsHistoryOpen}
       />
     </section>
   );
