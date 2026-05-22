@@ -1,10 +1,11 @@
 'use client';
 
-import { Plus } from 'lucide-react';
+import { HelpCircle, Plus } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { SenderAccountFormDialog } from '@/components/sender-accounts/sender-account-form-dialog';
 import { SenderAccountsTable } from '@/components/sender-accounts/sender-accounts-table';
+import { SmtpHelpDialog } from '@/components/sender-accounts/smtp-help-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { HttpClientError } from '@/lib/api/errors';
@@ -38,6 +39,7 @@ export default function SenderAccountsPage() {
   const [filter, setFilter] = useState<TypeFilter>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [testingId, setTestingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -168,10 +170,20 @@ export default function SenderAccountsPage() {
             Manage email and WhatsApp sender identities, limits, and health.
           </p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Sender Account
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            className="border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
+            onClick={() => setIsHelpOpen(true)}
+          >
+            <HelpCircle className="mr-1.5 h-4 w-4 text-zinc-400" />
+            Info / Help
+          </Button>
+          <Button onClick={openCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Sender Account
+          </Button>
+        </div>
       </div>
 
       <Card className="border-zinc-800 bg-zinc-900/60 text-zinc-100">
@@ -211,6 +223,11 @@ export default function SenderAccountsPage() {
         onSubmit={handleSave}
         isSubmitting={isSaving}
         onRevealSmtpPassword={handleRevealSmtpPassword}
+      />
+
+      <SmtpHelpDialog
+        open={isHelpOpen}
+        onOpenChange={setIsHelpOpen}
       />
     </section>
   );
