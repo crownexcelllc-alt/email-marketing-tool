@@ -337,7 +337,7 @@ export class CampaignsService {
         .exec();
 
       const matchedContactIds = contacts.map((c) => c._id);
-      
+
       if (filterQuery.contactId) {
         if (filterQuery.contactId.$in) {
           const existingIn = new Set(filterQuery.contactId.$in.map((id: any) => id.toString()));
@@ -438,7 +438,8 @@ export class CampaignsService {
 
       let name = '';
       if (contactObj) {
-        name = (contactObj.fullName || '').trim() ||
+        name =
+          (contactObj.fullName || '').trim() ||
           `${contactObj.firstName || ''} ${contactObj.lastName || ''}`.trim();
       }
 
@@ -597,30 +598,34 @@ export class CampaignsService {
 
     campaign.editedAt = new Date();
 
-    const saved = await this.campaignModel.findOneAndUpdate(
-      { _id: campaign._id },
-      {
-        $set: {
-          name: campaign.name,
-          senderAccountIds: campaign.senderAccountIds,
-          segmentId: campaign.segmentId,
-          contactIds: campaign.contactIds,
-          templateId: campaign.populated('templateId') || campaign.templateId?._id || campaign.templateId,
-          timezone: campaign.timezone,
-          startAt: campaign.startAt,
-          sendingWindowStart: campaign.sendingWindowStart,
-          sendingWindowEnd: campaign.sendingWindowEnd,
-          dailyCap: campaign.dailyCap,
-          trackOpens: campaign.trackOpens,
-          trackClicks: campaign.trackClicks,
-          randomDelayMinSeconds: campaign.randomDelayMinSeconds,
-          randomDelayMaxSeconds: campaign.randomDelayMaxSeconds,
-          'settings.distributionStrategy': campaign.settings?.distributionStrategy,
-          editedAt: campaign.editedAt,
+    const saved = await this.campaignModel
+      .findOneAndUpdate(
+        { _id: campaign._id },
+        {
+          $set: {
+            name: campaign.name,
+            senderAccountIds: campaign.senderAccountIds,
+            segmentId: campaign.segmentId,
+            contactIds: campaign.contactIds,
+            templateId:
+              campaign.populated('templateId') || campaign.templateId?._id || campaign.templateId,
+            timezone: campaign.timezone,
+            startAt: campaign.startAt,
+            sendingWindowStart: campaign.sendingWindowStart,
+            sendingWindowEnd: campaign.sendingWindowEnd,
+            dailyCap: campaign.dailyCap,
+            trackOpens: campaign.trackOpens,
+            trackClicks: campaign.trackClicks,
+            randomDelayMinSeconds: campaign.randomDelayMinSeconds,
+            randomDelayMaxSeconds: campaign.randomDelayMaxSeconds,
+            'settings.distributionStrategy': campaign.settings?.distributionStrategy,
+            editedAt: campaign.editedAt,
+          },
         },
-      },
-      { returnDocument: 'after' },
-    ).populate('templateId').exec();
+        { returnDocument: 'after' },
+      )
+      .populate('templateId')
+      .exec();
     return this.toResponse(saved || campaign);
   }
 
@@ -636,9 +641,23 @@ export class CampaignsService {
 
   async duplicate(id: string, authUser: AuthUser): Promise<CampaignResponse> {
     const original = await this.findOwnedCampaign(id, authUser);
+    const workspaceId = original.workspaceId;
 
-    const copyNumber = (original.copyNumber ?? 0) + 1;
-    const cleanName = original.name.replace(/ - Copy( \d+)?$/, '');
+    const cleanName = original.name.replace(/ - Copy( \d+)?$/, '').trim();
+    const escapedCleanName = cleanName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    const nameRegex = new RegExp(`^${escapedCleanName}( - Copy \\d+)?$`);
+
+    const highestCopy = await this.campaignModel
+      .findOne({
+        workspaceId,
+        name: nameRegex,
+      })
+      .sort({ copyNumber: -1 })
+      .select('copyNumber')
+      .lean()
+      .exec();
+
+    const copyNumber = ((highestCopy?.copyNumber as number) ?? 0) + 1;
     const nameSuffix = ` - Copy ${copyNumber}`;
 
     const duplicated = await this.campaignModel.create({
@@ -648,7 +667,8 @@ export class CampaignsService {
       senderAccountIds: original.senderAccountIds,
       segmentId: original.segmentId,
       contactIds: original.contactIds,
-      templateId: original.populated('templateId') || original.templateId?._id || original.templateId,
+      templateId:
+        original.populated('templateId') || original.templateId?._id || original.templateId,
       status: CampaignStatus.DRAFT,
       timezone: original.timezone ?? 'UTC',
       startAt: null,
@@ -730,19 +750,21 @@ export class CampaignsService {
     campaign.stats.lastStartedAt = new Date();
     campaign.trackingBaseUrl = trackingBaseUrl;
 
-    await this.campaignModel.updateOne(
-      { _id: campaign._id },
-      {
-        $set: {
-          status: campaign.status,
-          'stats.totalRecipients': campaign.stats.totalRecipients,
-          'stats.queuedRecipients': campaign.stats.queuedRecipients,
-          'stats.skippedRecipients': campaign.stats.skippedRecipients,
-          'stats.lastStartedAt': campaign.stats.lastStartedAt,
-          trackingBaseUrl: campaign.trackingBaseUrl,
+    await this.campaignModel
+      .updateOne(
+        { _id: campaign._id },
+        {
+          $set: {
+            status: campaign.status,
+            'stats.totalRecipients': campaign.stats.totalRecipients,
+            'stats.queuedRecipients': campaign.stats.queuedRecipients,
+            'stats.skippedRecipients': campaign.stats.skippedRecipients,
+            'stats.lastStartedAt': campaign.stats.lastStartedAt,
+            trackingBaseUrl: campaign.trackingBaseUrl,
+          },
         },
-      },
-    ).exec();
+      )
+      .exec();
 
     const delayMs = campaign.startAt
       ? Math.max(0, campaign.startAt.getTime() - Date.now())
@@ -772,10 +794,12 @@ export class CampaignsService {
       );
     }
 
-    const result = await this.campaignModel.updateOne(
-      { _id: campaign._id, status: { $ne: CampaignStatus.COMPLETED } },
-      { $set: { status: CampaignStatus.PAUSED } },
-    ).exec();
+    const result = await this.campaignModel
+      .updateOne(
+        { _id: campaign._id, status: { $ne: CampaignStatus.COMPLETED } },
+        { $set: { status: CampaignStatus.PAUSED } },
+      )
+      .exec();
 
     if (result.matchedCount === 0) {
       throw new AppException(
@@ -791,10 +815,7 @@ export class CampaignsService {
 
   async resume(id: string, authUser: AuthUser, trackingBaseUrl: string): Promise<CampaignResponse> {
     const campaign = await this.findOwnedCampaign(id, authUser);
-    if (
-      campaign.status !== CampaignStatus.PAUSED &&
-      campaign.status !== CampaignStatus.CANCELLED
-    ) {
+    if (campaign.status !== CampaignStatus.PAUSED && campaign.status !== CampaignStatus.CANCELLED) {
       throw new AppException(
         HttpStatus.BAD_REQUEST,
         'CAMPAIGN_RESUME_NOT_ALLOWED',
@@ -828,15 +849,17 @@ export class CampaignsService {
         lastWhatsappStatusAt: null,
       };
     } else {
-      await this.campaignRecipientModel.updateMany(
-        {
-          campaignId: campaign._id,
-          status: { $in: [CampaignRecipientStatus.QUEUED, CampaignRecipientStatus.SENDING] },
-        },
-        {
-          $set: { status: CampaignRecipientStatus.PENDING },
-        },
-      ).exec();
+      await this.campaignRecipientModel
+        .updateMany(
+          {
+            campaignId: campaign._id,
+            status: { $in: [CampaignRecipientStatus.QUEUED, CampaignRecipientStatus.SENDING] },
+          },
+          {
+            $set: { status: CampaignRecipientStatus.PENDING },
+          },
+        )
+        .exec();
     }
 
     campaign.status = CampaignStatus.RUNNING;
@@ -850,10 +873,7 @@ export class CampaignsService {
       updateFields.stats = campaign.stats;
     }
 
-    await this.campaignModel.updateOne(
-      { _id: campaign._id },
-      { $set: updateFields },
-    ).exec();
+    await this.campaignModel.updateOne({ _id: campaign._id }, { $set: updateFields }).exec();
 
     await this.queueService.enqueueCampaignScheduler({
       campaignId: campaign.id,
@@ -877,10 +897,12 @@ export class CampaignsService {
       );
     }
 
-    const result = await this.campaignModel.updateOne(
-      { _id: campaign._id, status: { $ne: CampaignStatus.COMPLETED } },
-      { $set: { status: CampaignStatus.CANCELLED } },
-    ).exec();
+    const result = await this.campaignModel
+      .updateOne(
+        { _id: campaign._id, status: { $ne: CampaignStatus.COMPLETED } },
+        { $set: { status: CampaignStatus.CANCELLED } },
+      )
+      .exec();
 
     if (result.matchedCount === 0) {
       throw new AppException(
@@ -1190,7 +1212,7 @@ export class CampaignsService {
     const templateIdStr = rawTemplateId ? rawTemplateId.toString() : '';
     const templateName = isPopulated ? templateObj.name : null;
     const templateSubject = isPopulated
-      ? (templateObj.email?.subject || templateObj.whatsapp?.templateName || null)
+      ? templateObj.email?.subject || templateObj.whatsapp?.templateName || null
       : null;
 
     return {
@@ -1312,10 +1334,7 @@ export class CampaignsService {
     );
   }
 
-  private objectIdsEqual(
-    left: any,
-    right: any,
-  ): boolean {
+  private objectIdsEqual(left: any, right: any): boolean {
     const leftId = left?._id ? left._id.toString() : (left?.toString() ?? null);
     const rightId = right?._id ? right._id.toString() : (right?.toString() ?? null);
     return leftId === rightId;

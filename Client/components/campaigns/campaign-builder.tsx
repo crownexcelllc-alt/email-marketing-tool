@@ -692,14 +692,16 @@ export function CampaignBuilder() {
       return (
         <div className="space-y-4">
           {/* Mode switcher: 2 options */}
-          <div className="inline-flex rounded-md border border-zinc-800 bg-zinc-900 p-1">
+          <div className="inline-flex rounded-md border border-zinc-200 bg-white p-1">
             {(['contacts', 'category'] as const).map((mode) => (
-              <Button
+              <button
                 key={mode}
                 type="button"
-                size="sm"
-                variant={watchedTargetMode === mode ? 'default' : 'ghost'}
-                className={watchedTargetMode === mode ? '' : 'text-zinc-400 hover:text-zinc-100'}
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+                  watchedTargetMode === mode
+                    ? 'bg-[#fafafa] text-black border border-zinc-300 shadow-sm'
+                    : 'bg-white text-black hover:bg-zinc-50'
+                }`}
                 onClick={() => {
                   form.setValue('targetMode', mode);
                   // Clear the irrelevant fields when switching mode
@@ -708,7 +710,7 @@ export function CampaignBuilder() {
                 }}
               >
                 {mode === 'contacts' ? 'Select Contacts' : 'By Category'}
-              </Button>
+              </button>
             ))}
           </div>
 
@@ -1152,7 +1154,16 @@ export function CampaignBuilder() {
                       <span>{formatCampaignTimestamp(campaign.updatedAt ?? campaign.createdAt)}</span>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
+                    {campaign.copyNumber === 0 || !campaign.copyNumber ? (
+                      <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800 font-medium">
+                        Original
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="border-violet-200 bg-violet-50 text-violet-800 font-medium">
+                        Copy {campaign.copyNumber}
+                      </Badge>
+                    )}
                     <Button
                       type="button"
                       variant="destructive"
