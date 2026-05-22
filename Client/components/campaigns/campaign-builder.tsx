@@ -487,6 +487,7 @@ export function CampaignBuilder() {
 
   const handleLaunch = form.handleSubmit(async (values) => {
     setIsLaunching(true);
+    setIsReadyToSave(false);
 
     try {
       let resolvedContactIds = values.contactIds;
@@ -498,6 +499,7 @@ export function CampaignBuilder() {
         if (resolvedContactIds.length === 0) {
           toast.error(`No contacts found in category "${values.categoryName}".`);
           setIsLaunching(false);
+          setIsReadyToSave(true);
           return;
         }
       }
@@ -526,6 +528,7 @@ export function CampaignBuilder() {
       router.push(ROUTES.dashboard.segments);
     } catch (error: unknown) {
       toast.error(getErrorMessage(error));
+      setIsReadyToSave(true);
     } finally {
       setIsLaunching(false);
     }
