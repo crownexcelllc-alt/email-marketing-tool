@@ -300,11 +300,10 @@ export function CampaignEditRerunDialog({ open, campaign, onOpenChange, onSucces
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    className={`rounded-lg border-2 p-3.5 text-left text-sm font-semibold transition-all ${
-                      channel === 'email'
-                        ? 'border-zinc-950 bg-[#fafafa] text-black shadow-sm'
-                        : 'border-zinc-200 bg-white text-black hover:bg-[#fafafa] hover:border-zinc-300'
-                    }`}
+                    className={`rounded-lg border-2 p-3.5 text-left text-sm font-semibold transition-all ${channel === 'email'
+                        ? 'border-zinc-950 bg-zinc-950 text-white shadow-sm'
+                        : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-55 hover:border-zinc-300'
+                      }`}
                     onClick={() => {
                       form.setValue('channel', 'email');
                       form.setValue('senderAccountIds', []);
@@ -315,11 +314,10 @@ export function CampaignEditRerunDialog({ open, campaign, onOpenChange, onSucces
                   </button>
                   <button
                     type="button"
-                    className={`rounded-lg border-2 p-3.5 text-left text-sm font-semibold transition-all ${
-                      channel === 'whatsapp'
-                        ? 'border-zinc-950 bg-[#fafafa] text-black shadow-sm'
-                        : 'border-zinc-200 bg-white text-black hover:bg-[#fafafa] hover:border-zinc-300'
-                    }`}
+                    className={`rounded-lg border-2 p-3.5 text-left text-sm font-semibold transition-all ${channel === 'whatsapp'
+                        ? 'border-zinc-950 bg-zinc-950 text-white shadow-sm'
+                        : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-55 hover:border-zinc-300'
+                      }`}
                     onClick={() => {
                       form.setValue('channel', 'whatsapp');
                       form.setValue('senderAccountIds', []);
@@ -392,11 +390,10 @@ export function CampaignEditRerunDialog({ open, campaign, onOpenChange, onSucces
                 <div className="grid grid-cols-3 gap-2 mb-3">
                   <button
                     type="button"
-                    className={`rounded-lg border-2 p-2.5 text-center text-xs font-semibold transition-all ${
-                      targetMode === 'segment'
-                        ? 'border-zinc-950 bg-[#fafafa] text-black shadow-sm'
-                        : 'border-zinc-200 bg-white text-black hover:bg-[#fafafa] hover:border-zinc-300'
-                    }`}
+                    className={`rounded-lg border-2 p-2.5 text-center text-xs font-semibold transition-all ${targetMode === 'segment'
+                        ? 'border-zinc-950 bg-zinc-950 text-white shadow-sm'
+                        : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 hover:border-zinc-300'
+                      }`}
                     onClick={() => {
                       form.setValue('targetMode', 'segment');
                       form.setValue('categoryName', '');
@@ -407,11 +404,10 @@ export function CampaignEditRerunDialog({ open, campaign, onOpenChange, onSucces
                   </button>
                   <button
                     type="button"
-                    className={`rounded-lg border-2 p-2.5 text-center text-xs font-semibold transition-all ${
-                      targetMode === 'contacts'
-                        ? 'border-zinc-950 bg-[#fafafa] text-black shadow-sm'
-                        : 'border-zinc-200 bg-white text-black hover:bg-[#fafafa] hover:border-zinc-300'
-                    }`}
+                    className={`rounded-lg border-2 p-2.5 text-center text-xs font-semibold transition-all ${targetMode === 'contacts'
+                        ? 'border-zinc-950 bg-zinc-950 text-white shadow-sm'
+                        : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 hover:border-zinc-300'
+                      }`}
                     onClick={() => {
                       form.setValue('targetMode', 'contacts');
                       form.setValue('segmentId', '');
@@ -422,11 +418,10 @@ export function CampaignEditRerunDialog({ open, campaign, onOpenChange, onSucces
                   </button>
                   <button
                     type="button"
-                    className={`rounded-lg border-2 p-2.5 text-center text-xs font-semibold transition-all ${
-                      targetMode === 'category'
-                        ? 'border-zinc-950 bg-[#fafafa] text-black shadow-sm'
-                        : 'border-zinc-200 bg-white text-black hover:bg-[#fafafa] hover:border-zinc-300'
-                    }`}
+                    className={`rounded-lg border-2 p-2.5 text-center text-xs font-semibold transition-all ${targetMode === 'category'
+                        ? 'border-zinc-950 bg-zinc-950 text-white shadow-sm'
+                        : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 hover:border-zinc-300'
+                      }`}
                     onClick={() => {
                       form.setValue('targetMode', 'category');
                       form.setValue('segmentId', '');
@@ -577,11 +572,10 @@ export function CampaignEditRerunDialog({ open, campaign, onOpenChange, onSucces
                       return (
                         <label
                           key={tpl.id}
-                          className={`flex cursor-pointer items-center justify-between rounded-md border px-3 py-2.5 transition-all shadow-xs ${
-                            isSelected
+                          className={`flex cursor-pointer items-center justify-between rounded-md border px-3 py-2.5 transition-all shadow-xs ${isSelected
                               ? 'border-zinc-900 bg-white ring-1 ring-zinc-900'
                               : 'border-zinc-200 bg-white hover:bg-zinc-50'
-                          }`}
+                            }`}
                         >
                           <div>
                             <p className="text-sm font-semibold text-zinc-800">{tpl.name}</p>
