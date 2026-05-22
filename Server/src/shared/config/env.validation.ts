@@ -1,4 +1,4 @@
-﻿import * as Joi from 'joi';
+import * as Joi from 'joi';
 
 const privateIpv4Ranges = [
   /^10\./,
@@ -113,4 +113,9 @@ export const envValidationSchema = Joi.object({
     .default(''),
   TEMPLATE_IMAGES_QUOTA_MB: Joi.number().min(1).default(250),
   TEMPLATE_IMAGES_MAX_FILE_SIZE_MB: Joi.number().min(1).default(10),
+  SYSTEM_SMTP_HOST: Joi.string().allow('').optional(),
+  SYSTEM_SMTP_PORT: Joi.number().port().allow('').optional(),
+  SYSTEM_SMTP_USER: Joi.string().allow('').optional(),
+  SYSTEM_SMTP_PASS: Joi.string().allow('').optional(),
+  SYSTEM_SMTP_FROM: Joi.string().allow('').optional(),
 });

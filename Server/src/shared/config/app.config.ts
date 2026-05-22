@@ -105,6 +105,14 @@ export const mediaConfig = registerAs('media', () => ({
   },
 }));
 
+export const systemEmailConfig = registerAs('systemEmail', () => ({
+  host: process.env.SYSTEM_SMTP_HOST || '',
+  port: Number(process.env.SYSTEM_SMTP_PORT ?? 587),
+  user: process.env.SYSTEM_SMTP_USER || '',
+  pass: process.env.SYSTEM_SMTP_PASS || '',
+  from: process.env.SYSTEM_SMTP_FROM || '',
+}));
+
 export const configuration = [
   appConfig,
   mongoConfig,
@@ -116,4 +124,5 @@ export const configuration = [
   securityConfig,
   templateProvidersConfig,
   mediaConfig,
+  systemEmailConfig,
 ];

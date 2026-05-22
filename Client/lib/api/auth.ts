@@ -1,5 +1,5 @@
 import { apiRequest } from '@/lib/api/fetcher';
-import type { AuthSession, AuthUser, LoginInput, SignupInput } from '@/lib/types/auth';
+import type { AuthSession, AuthUser, LoginInput, SignupInput, SignupOtpResponse, VerifyOtpInput } from '@/lib/types/auth';
 
 function getRecord(input: unknown): Record<string, unknown> | null {
   if (input !== null && typeof input === 'object' && !Array.isArray(input)) {
@@ -73,14 +73,62 @@ export async function loginRequest(input: LoginInput): Promise<AuthSession> {
   return normalizeSession(payload);
 }
 
-export async function signupRequest(input: SignupInput): Promise<AuthSession> {
+export async function signupRequest(input: SignupInput): Promise<SignupOtpResponse> {
   const payload = await apiRequest<unknown, SignupInput>({
     method: 'POST',
     url: '/auth/signup',
     data: input,
   });
 
+  const record = getRecord(payload);
+  if (!record) {
+    throw new Error('Invalid response received from signup API.');
+  }
+
+  if (record.status === 'EMAIL_ALREADY_EXISTS') {
+    return {
+      status: 'EMAIL_ALREADY_EXISTS',
+      email: getString(record, ['email']) || '',
+      message: getString(record, ['message']) || 'An account with this email already exists',
+    };
+  }
+
+  if (record.status !== 'PENDING_VERIFICATION') {
+    throw new Error('Invalid response received from signup API.');
+  }
+
+  return {
+    status: 'PENDING_VERIFICATION',
+    email: getString(record, ['email']) || '',
+  };
+}
+
+export async function verifyOtpRequest(input: VerifyOtpInput): Promise<AuthSession> {
+  const payload = await apiRequest<unknown, VerifyOtpInput>({
+    method: 'POST',
+    url: '/auth/verify-otp',
+    data: input,
+  });
+
   return normalizeSession(payload);
+}
+
+export async function resendOtpRequest(email: string): Promise<SignupOtpResponse> {
+  const payload = await apiRequest<unknown, { email: string }>({
+    method: 'POST',
+    url: '/auth/resend-otp',
+    data: { email },
+  });
+
+  const record = getRecord(payload);
+  if (!record || record.status !== 'PENDING_VERIFICATION') {
+    throw new Error('Invalid response received from resend OTP API.');
+  }
+
+  return {
+    status: 'PENDING_VERIFICATION',
+    email: getString(record, ['email']) || '',
+  };
 }
 
 export async function meRequest(): Promise<AuthUser> {

@@ -21,3 +21,14 @@ export interface SignupInput {
   email: string;
   password: string;
 }
+
+export interface SignupOtpResponse {
+  status: 'PENDING_VERIFICATION' | 'EMAIL_ALREADY_EXISTS';
+  email: string;
+  message?: string;
+}
+
+export interface VerifyOtpInput {
+  email: string;
+  code: string;
+}

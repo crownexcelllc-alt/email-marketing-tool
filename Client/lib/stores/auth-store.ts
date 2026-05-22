@@ -2,10 +2,10 @@
 
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { meRequest, loginRequest, signupRequest } from '@/lib/api/auth';
+import { meRequest, loginRequest, signupRequest, verifyOtpRequest, resendOtpRequest } from '@/lib/api/auth';
 import { clearAuthCookie, setAuthCookie } from '@/lib/auth/token-cookie';
 import { AUTH_STORAGE_KEY } from '@/lib/constants/auth';
-import type { AuthSession, AuthUser, LoginInput, SignupInput } from '@/lib/types/auth';
+import type { AuthSession, AuthUser, LoginInput, SignupInput, SignupOtpResponse } from '@/lib/types/auth';
 
 interface AuthState {
   token: string | null;
@@ -17,7 +17,9 @@ interface AuthState {
   setSession: (input: AuthSession) => void;
   clearSession: () => void;
   login: (input: LoginInput) => Promise<void>;
-  signup: (input: SignupInput) => Promise<void>;
+  signup: (input: SignupInput) => Promise<SignupOtpResponse>;
+  verifySignupOtp: (email: string, code: string) => Promise<void>;
+  resendSignupOtp: (email: string) => Promise<void>;
   fetchUser: () => Promise<AuthUser | null>;
   logout: () => void;
 }
@@ -70,8 +72,24 @@ export const useAuthStore = create<AuthState>()(
       signup: async (input) => {
         set({ isLoading: true });
         try {
-          const session = await signupRequest(input);
+          return await signupRequest(input);
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+      verifySignupOtp: async (email, code) => {
+        set({ isLoading: true });
+        try {
+          const session = await verifyOtpRequest({ email, code });
           get().setSession(session);
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+      resendSignupOtp: async (email) => {
+        set({ isLoading: true });
+        try {
+          await resendOtpRequest(email);
         } finally {
           set({ isLoading: false });
         }
