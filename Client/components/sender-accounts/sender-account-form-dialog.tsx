@@ -23,6 +23,10 @@ import {
   type SenderAccountFormValues,
   updateSenderAccountSchema,
 } from '@/lib/validators/sender-account';
+import { getWorkspaceSettings } from '@/lib/api/settings';
+import type { WorkspaceSettings } from '@/lib/types/settings';
+import { Badge } from '@/components/ui/badge';
+
 
 interface SenderAccountFormDialogProps {
   open: boolean;
@@ -113,6 +117,39 @@ export function SenderAccountFormDialog({
   });
   const [showSmtpPassword, setShowSmtpPassword] = useState(false);
   const [isRevealingSmtpPassword, setIsRevealingSmtpPassword] = useState(false);
+  const [settings, setSettings] = useState<WorkspaceSettings | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    async function loadWorkspaceSettings() {
+      try {
+        const data = await getWorkspaceSettings();
+        if (active) {
+          setSettings(data);
+        }
+      } catch (err) {
+        console.error('Failed to load workspace settings:', err);
+      }
+    }
+
+    if (open) {
+      void loadWorkspaceSettings();
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!isEdit && settings && open) {
+      form.setValue('dailyLimit', settings.sendingLimits.dailyLimit);
+      form.setValue('hourlyLimit', settings.sendingLimits.hourlyLimit);
+      form.setValue('minDelaySeconds', settings.sendingLimits.minDelaySeconds);
+      form.setValue('maxDelaySeconds', settings.sendingLimits.maxDelaySeconds);
+    }
+  }, [settings, isEdit, form, open]);
+
 
   const type = useWatch({
     control: form.control,
@@ -319,41 +356,70 @@ export function SenderAccountFormDialog({
                   <FieldError message={form.formState.errors.smtpPass?.message} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="dailyLimit">Daily Limit</Label>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="dailyLimit">Daily Limit</Label>
+                    <Badge variant="neutral" className="text-[10px] px-1.5 py-0 font-normal uppercase tracking-wider scale-90 origin-left">
+                      Default
+                    </Badge>
+                  </div>
                   <Input
                     id="dailyLimit"
                     type="number"
+                    readOnly
                     className="border-zinc-800 bg-zinc-900 text-zinc-100"
                     {...form.register('dailyLimit')}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="hourlyLimit">Hourly Limit</Label>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="hourlyLimit">Hourly Limit</Label>
+                    <Badge variant="neutral" className="text-[10px] px-1.5 py-0 font-normal uppercase tracking-wider scale-90 origin-left">
+                      Default
+                    </Badge>
+                  </div>
                   <Input
                     id="hourlyLimit"
                     type="number"
+                    readOnly
                     className="border-zinc-800 bg-zinc-900 text-zinc-100"
                     {...form.register('hourlyLimit')}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="minDelaySeconds">Min Delay (sec)</Label>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="minDelaySeconds">Min Delay (sec)</Label>
+                    <Badge variant="neutral" className="text-[10px] px-1.5 py-0 font-normal uppercase tracking-wider scale-90 origin-left">
+                      Default
+                    </Badge>
+                  </div>
                   <Input
                     id="minDelaySeconds"
                     type="number"
+                    readOnly
                     className="border-zinc-800 bg-zinc-900 text-zinc-100"
                     {...form.register('minDelaySeconds')}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="maxDelaySeconds">Max Delay (sec)</Label>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="maxDelaySeconds">Max Delay (sec)</Label>
+                    <Badge variant="neutral" className="text-[10px] px-1.5 py-0 font-normal uppercase tracking-wider scale-90 origin-left">
+                      Default
+                    </Badge>
+                  </div>
                   <Input
                     id="maxDelaySeconds"
                     type="number"
+                    readOnly
                     className="border-zinc-800 bg-zinc-900 text-zinc-100"
                     {...form.register('maxDelaySeconds')}
                   />
                 </div>
+                <div className="col-span-2 rounded border border-zinc-200 dark:border-zinc-800/50 bg-zinc-50 dark:bg-zinc-950/30 p-3 text-xs text-zinc-500 dark:text-zinc-400">
+                  Sending limits can be updated from:{' '}
+                  <span className="font-semibold text-zinc-700 dark:text-zinc-300">Settings &rarr; Sending Limits</span> section.
+                </div>
+
               </div>
               <label className="flex items-center gap-2 text-sm text-zinc-300">
                 <input type="checkbox" className="h-4 w-4 rounded border-zinc-700 bg-zinc-900" {...form.register('secure')} />
