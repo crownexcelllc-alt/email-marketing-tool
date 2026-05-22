@@ -4,6 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
+import { ROUTES } from '@/lib/constants/routes';
 import { CampaignStepper, type CampaignStep } from '@/components/campaigns/campaign-stepper';
 import { ContactFormDialog } from '@/components/contacts/contact-form-dialog';
 import { Badge } from '@/components/ui/badge';
@@ -19,8 +21,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { createCampaign, deleteCampaign, getCampaignContacts, getCampaigns, startCampaign, duplicateCampaign, updateCampaign } from '@/lib/api/campaigns';
-import { Copy } from 'lucide-react';
+import { createCampaign, deleteCampaign, getCampaignContacts, getCampaigns, startCampaign, updateCampaign } from '@/lib/api/campaigns';
 import { bulkAddLabelToContacts, updateContact } from '@/lib/api/contacts';
 import { getAllContacts, getContacts, getContactCategorySummary } from '@/lib/api/contacts';
 import type { ContactCategorySummaryItem } from '@/lib/types/contact';
@@ -183,6 +184,7 @@ function isDraftEmpty(values: CampaignBuilderFormValues): boolean {
 }
 
 export function CampaignBuilder() {
+  const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoadingOptions, setIsLoadingOptions] = useState(true);
   const [isLoadingRecentCampaigns, setIsLoadingRecentCampaigns] = useState(true);
@@ -192,7 +194,6 @@ export function CampaignBuilder() {
   const [isAudienceSaving, setIsAudienceSaving] = useState(false);
   const [lastLaunchedCampaignId, setLastLaunchedCampaignId] = useState<string | null>(null);
   const [deletingCampaignId, setDeletingCampaignId] = useState<string | null>(null);
-  const [duplicatingCampaignId, setDuplicatingCampaignId] = useState<string | null>(null);
   const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
 
   const [draftPromptOpen, setDraftPromptOpen] = useState(false);
@@ -522,6 +523,7 @@ export function CampaignBuilder() {
       localStorage.removeItem('campaign_builder_draft');
       toast.success(`Campaign "${campaign.name}" launched.`);
       await loadRecentCampaigns();
+      router.push(ROUTES.dashboard.segments);
     } catch (error: unknown) {
       toast.error(getErrorMessage(error));
     } finally {
@@ -554,41 +556,6 @@ export function CampaignBuilder() {
     }
   };
 
-  const handleDuplicateCampaign = async (campaign: Campaign) => {
-    setDuplicatingCampaignId(campaign.id);
-    try {
-      const duplicated = await duplicateCampaign(campaign.id);
-      setActiveCampaignId(duplicated.id);
-      toast.success(`Campaign duplicated successfully! Loading into builder...`);
-      await loadRecentCampaigns();
-      
-      form.reset({
-        name: duplicated.name,
-        description: '',
-        channel: duplicated.channel,
-        targetMode: duplicated.segmentId ? 'segment' : 'contacts',
-        segmentId: duplicated.segmentId ?? '',
-        contactIds: duplicated.contactIds ?? [],
-        senderAccountIds: duplicated.senderAccountIds ?? [],
-        templateId: duplicated.templateId ?? '',
-        scheduleMode: duplicated.startAt ? 'scheduled' : 'now',
-        timezone: duplicated.timezone || 'UTC',
-        startAt: duplicated.startAt ? new Date(duplicated.startAt).toISOString().slice(0, 16) : '',
-        sendingWindowStart: duplicated.sendingWindowStart ?? '',
-        sendingWindowEnd: duplicated.sendingWindowEnd ?? '',
-        dailyCap: duplicated.dailyCap ?? undefined,
-        categoryName: '',
-      });
-      
-      setCurrentStep(0);
-      setLastLaunchedCampaignId(null);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (error: unknown) {
-      toast.error(getErrorMessage(error));
-    } finally {
-      setDuplicatingCampaignId(null);
-    }
-  };
 
   const handleOpenCampaignAudience = (campaign: Campaign) => {
     void loadCampaignAudience(campaign, 1);
@@ -1183,19 +1150,6 @@ export function CampaignBuilder() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="border-zinc-700 text-zinc-200 hover:bg-zinc-800 gap-1.5"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void handleDuplicateCampaign(campaign);
-                      }}
-                      disabled={duplicatingCampaignId === campaign.id}
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      {duplicatingCampaignId === campaign.id ? 'Duplicating...' : 'Duplicate'}
-                    </Button>
                     <Button
                       type="button"
                       variant="destructive"
