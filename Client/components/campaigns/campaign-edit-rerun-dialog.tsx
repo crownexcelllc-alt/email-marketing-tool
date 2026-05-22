@@ -302,8 +302,8 @@ export function CampaignEditRerunDialog({ open, campaign, onOpenChange, onSucces
                     type="button"
                     className={`rounded-lg border-2 p-3.5 text-left text-sm font-semibold transition-all ${
                       channel === 'email'
-                        ? 'border-zinc-950 bg-zinc-950 text-white shadow-sm'
-                        : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-55 hover:border-zinc-300'
+                        ? 'border-zinc-950 bg-[#fafafa] text-black shadow-sm'
+                        : 'border-zinc-200 bg-white text-black hover:bg-[#fafafa] hover:border-zinc-300'
                     }`}
                     onClick={() => {
                       form.setValue('channel', 'email');
@@ -317,8 +317,8 @@ export function CampaignEditRerunDialog({ open, campaign, onOpenChange, onSucces
                     type="button"
                     className={`rounded-lg border-2 p-3.5 text-left text-sm font-semibold transition-all ${
                       channel === 'whatsapp'
-                        ? 'border-zinc-950 bg-zinc-950 text-white shadow-sm'
-                        : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-55 hover:border-zinc-300'
+                        ? 'border-zinc-950 bg-[#fafafa] text-black shadow-sm'
+                        : 'border-zinc-200 bg-white text-black hover:bg-[#fafafa] hover:border-zinc-300'
                     }`}
                     onClick={() => {
                       form.setValue('channel', 'whatsapp');
@@ -394,8 +394,8 @@ export function CampaignEditRerunDialog({ open, campaign, onOpenChange, onSucces
                     type="button"
                     className={`rounded-lg border-2 p-2.5 text-center text-xs font-semibold transition-all ${
                       targetMode === 'segment'
-                        ? 'border-zinc-950 bg-zinc-950 text-white shadow-sm'
-                        : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 hover:border-zinc-300'
+                        ? 'border-zinc-950 bg-[#fafafa] text-black shadow-sm'
+                        : 'border-zinc-200 bg-white text-black hover:bg-[#fafafa] hover:border-zinc-300'
                     }`}
                     onClick={() => {
                       form.setValue('targetMode', 'segment');
@@ -409,8 +409,8 @@ export function CampaignEditRerunDialog({ open, campaign, onOpenChange, onSucces
                     type="button"
                     className={`rounded-lg border-2 p-2.5 text-center text-xs font-semibold transition-all ${
                       targetMode === 'contacts'
-                        ? 'border-zinc-950 bg-zinc-950 text-white shadow-sm'
-                        : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 hover:border-zinc-300'
+                        ? 'border-zinc-950 bg-[#fafafa] text-black shadow-sm'
+                        : 'border-zinc-200 bg-white text-black hover:bg-[#fafafa] hover:border-zinc-300'
                     }`}
                     onClick={() => {
                       form.setValue('targetMode', 'contacts');
@@ -424,8 +424,8 @@ export function CampaignEditRerunDialog({ open, campaign, onOpenChange, onSucces
                     type="button"
                     className={`rounded-lg border-2 p-2.5 text-center text-xs font-semibold transition-all ${
                       targetMode === 'category'
-                        ? 'border-zinc-950 bg-zinc-950 text-white shadow-sm'
-                        : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 hover:border-zinc-300'
+                        ? 'border-zinc-950 bg-[#fafafa] text-black shadow-sm'
+                        : 'border-zinc-200 bg-white text-black hover:bg-[#fafafa] hover:border-zinc-300'
                     }`}
                     onClick={() => {
                       form.setValue('targetMode', 'category');
