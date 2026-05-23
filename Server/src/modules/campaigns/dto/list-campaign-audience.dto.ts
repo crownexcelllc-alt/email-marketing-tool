@@ -12,6 +12,6 @@ export class ListCampaignAudienceDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(1000)
+  @Max(10000000)
   readonly limit?: number;
 }
