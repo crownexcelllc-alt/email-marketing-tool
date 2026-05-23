@@ -468,38 +468,57 @@ export function CampaignEditRerunDialog({ open, campaign, onOpenChange, onSucces
                     {contacts.length === 0 ? (
                       <p className="px-2 py-3 text-xs text-zinc-400">No contacts found.</p>
                     ) : (
-                      contacts.map((contact) => (
-                        <label
-                          key={contact.id}
-                          className="flex cursor-pointer items-center justify-between rounded-md border border-zinc-200 bg-white px-3 py-2.5 hover:bg-zinc-50 transition-colors shadow-xs"
-                        >
+                      <>
+                        <label className="flex cursor-pointer items-center justify-between rounded-md border border-zinc-200 bg-white px-3 py-2.5 hover:bg-zinc-50 transition-colors shadow-xs">
                           <div>
-                            <p className="text-sm font-semibold text-zinc-800">
-                              {getContactLabel(contact)}
-                            </p>
-                            <p className="text-xs text-zinc-500 font-medium">
-                              {contact.email ?? contact.phone ?? '-'}
-                              {contact.category && (
-                                <span className="ml-2 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] text-zinc-500 font-semibold">
-                                  {contact.category}
-                                </span>
-                              )}
+                            <p className="text-sm font-bold text-zinc-800">Select All</p>
+                            <p className="text-xs text-zinc-500 font-semibold">
+                              {watchedContactIds.length === contacts.length ? 'Deselect all' : 'Select all'} {contacts.length} contacts
                             </p>
                           </div>
                           <input
                             type="checkbox"
                             className="h-4.5 w-4.5 accent-zinc-900 cursor-pointer"
-                            checked={watchedContactIds.includes(contact.id)}
-                            onChange={(e) =>
-                              form.setValue(
-                                'contactIds',
-                                toggleId(watchedContactIds, contact.id, e.target.checked),
-                                { shouldDirty: true },
-                              )
-                            }
+                            checked={contacts.length > 0 && watchedContactIds.length === contacts.length}
+                            onChange={(e) => {
+                              const allIds = e.target.checked ? contacts.map((c) => c.id) : [];
+                              form.setValue('contactIds', allIds, { shouldDirty: true });
+                            }}
                           />
                         </label>
-                      ))
+                        {contacts.map((contact) => (
+                          <label
+                            key={contact.id}
+                            className="flex cursor-pointer items-center justify-between rounded-md border border-zinc-200 bg-white px-3 py-2.5 hover:bg-zinc-50 transition-colors shadow-xs"
+                          >
+                            <div>
+                              <p className="text-sm font-semibold text-zinc-800">
+                                {getContactLabel(contact)}
+                              </p>
+                              <p className="text-xs text-zinc-500 font-medium">
+                                {contact.email ?? contact.phone ?? '-'}
+                                {contact.category && (
+                                  <span className="ml-2 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] text-zinc-500 font-semibold">
+                                    {contact.category}
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+                            <input
+                              type="checkbox"
+                              className="h-4.5 w-4.5 accent-zinc-900 cursor-pointer"
+                              checked={watchedContactIds.includes(contact.id)}
+                              onChange={(e) =>
+                                form.setValue(
+                                  'contactIds',
+                                  toggleId(watchedContactIds, contact.id, e.target.checked),
+                                  { shouldDirty: true },
+                                )
+                              }
+                            />
+                          </label>
+                        ))}
+                      </>
                     )}
                     {watchedContactIds.length > 0 && (
                       <p className="pt-1 text-right text-xs font-semibold text-zinc-600">

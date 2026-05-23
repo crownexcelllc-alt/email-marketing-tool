@@ -722,36 +722,55 @@ export function CampaignBuilder() {
               {contacts.length === 0 ? (
                 <p className="px-2 py-3 text-sm text-zinc-500">No contacts found.</p>
               ) : (
-                contacts.map((contact) => (
-                  <label
-                    key={contact.id}
-                    className="flex cursor-pointer items-center justify-between rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2"
-                  >
+                <>
+                  <label className="flex cursor-pointer items-center justify-between rounded-md border border-zinc-800 bg-zinc-900/60 px-3 py-2 hover:bg-zinc-800/80 transition-colors">
                     <div>
-                      <p className="text-sm font-medium text-zinc-100">{getContactLabel(contact)}</p>
-                      <p className="text-xs text-zinc-500">
-                        {contact.email ?? contact.phone ?? '-'}
-                        {contact.category ? (
-                          <span className="ml-2 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400">
-                            {contact.category}
-                          </span>
-                        ) : null}
+                      <p className="text-sm font-semibold text-zinc-100">Select All</p>
+                      <p className="text-xs text-zinc-400">
+                        {watchedContactIds.length === contacts.length ? 'Deselect all' : 'Select all'} {contacts.length} contacts
                       </p>
                     </div>
                     <input
                       type="checkbox"
-                      className="h-4 w-4"
-                      checked={watchedContactIds.includes(contact.id)}
-                      onChange={(event) =>
-                        form.setValue(
-                          'contactIds',
-                          toggleId(watchedContactIds, contact.id, event.target.checked),
-                          { shouldDirty: true },
-                        )
-                      }
+                      className="h-4 w-4 cursor-pointer"
+                      checked={contacts.length > 0 && watchedContactIds.length === contacts.length}
+                      onChange={(event) => {
+                        const allIds = event.target.checked ? contacts.map((c) => c.id) : [];
+                        form.setValue('contactIds', allIds, { shouldDirty: true });
+                      }}
                     />
                   </label>
-                ))
+                  {contacts.map((contact) => (
+                    <label
+                      key={contact.id}
+                      className="flex cursor-pointer items-center justify-between rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-zinc-100">{getContactLabel(contact)}</p>
+                        <p className="text-xs text-zinc-500">
+                          {contact.email ?? contact.phone ?? '-'}
+                          {contact.category ? (
+                            <span className="ml-2 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400">
+                              {contact.category}
+                            </span>
+                          ) : null}
+                        </p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={watchedContactIds.includes(contact.id)}
+                        onChange={(event) =>
+                          form.setValue(
+                            'contactIds',
+                            toggleId(watchedContactIds, contact.id, event.target.checked),
+                            { shouldDirty: true },
+                          )
+                        }
+                      />
+                    </label>
+                  ))}
+                </>
               )}
               {watchedContactIds.length > 0 && (
                 <p className="pt-1 text-right text-xs text-zinc-400">

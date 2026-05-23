@@ -287,34 +287,53 @@ export function SegmentFormDialog({
                   ) : contacts.length === 0 ? (
                     <p className="px-2 py-3 text-sm text-zinc-500">No contacts found.</p>
                   ) : (
-                    contacts.map((contact) => {
-                      const label =
-                        contact.fullName ||
-                        [contact.firstName, contact.lastName].filter(Boolean).join(' ').trim() ||
-                        contact.email ||
-                        contact.phone ||
-                        'Contact';
+                    <>
+                      <label className="flex cursor-pointer items-center justify-between rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 hover:bg-zinc-800/80 transition-colors">
+                        <div>
+                          <p className="text-sm font-semibold text-zinc-100">Select All</p>
+                          <p className="text-xs text-zinc-400">
+                            {watchedContactIds.length === contacts.length ? 'Deselect all' : 'Select all'} {contacts.length} contacts
+                          </p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 cursor-pointer"
+                          checked={contacts.length > 0 && watchedContactIds.length === contacts.length}
+                          onChange={(event) => {
+                            const allIds = event.target.checked ? contacts.map((c) => c.id) : [];
+                            form.setValue('contactIds', allIds, { shouldDirty: true });
+                          }}
+                        />
+                      </label>
+                      {contacts.map((contact) => {
+                        const label =
+                          contact.fullName ||
+                          [contact.firstName, contact.lastName].filter(Boolean).join(' ').trim() ||
+                          contact.email ||
+                          contact.phone ||
+                          'Contact';
 
-                      return (
-                        <label
-                          key={contact.id}
-                          className="flex cursor-pointer items-center justify-between rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2"
-                        >
-                          <div>
-                            <p className="text-sm font-medium text-zinc-100">{label}</p>
-                            <p className="text-xs text-zinc-500">
-                              {contact.email ?? contact.phone ?? '-'}
-                            </p>
-                          </div>
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4"
-                            checked={watchedContactIds.includes(contact.id)}
-                            onChange={(event) => handleToggleContact(contact.id, event.target.checked)}
-                          />
-                        </label>
-                      );
-                    })
+                        return (
+                          <label
+                            key={contact.id}
+                            className="flex cursor-pointer items-center justify-between rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2"
+                          >
+                            <div>
+                              <p className="text-sm font-medium text-zinc-100">{label}</p>
+                              <p className="text-xs text-zinc-500">
+                                {contact.email ?? contact.phone ?? '-'}
+                              </p>
+                            </div>
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4"
+                              checked={watchedContactIds.includes(contact.id)}
+                              onChange={(event) => handleToggleContact(contact.id, event.target.checked)}
+                            />
+                          </label>
+                        );
+                      })}
+                    </>
                   )}
                 </div>
                 <FieldError message={form.formState.errors.contactIds?.message as string | undefined} />
