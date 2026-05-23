@@ -174,6 +174,10 @@ const IMAGE_TOOLBAR_ICON_COPY =
   '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>';
 const IMAGE_TOOLBAR_ICON_DELETE =
   '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
+const TOOLBAR_ICON_MOVE_UP =
+  '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>';
+const TOOLBAR_ICON_DRAG =
+  '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></svg>';
 
 const SECTION_CONTAINER_TYPES = new Set(['mj-section', 'mj-wrapper', 'mj-column', 'mj-hero']);
 const BACKGROUND_CAPABLE_TYPES = new Set([
@@ -1395,68 +1399,123 @@ export function LayoutTemplateEditor({
     imageLinkDialogComponentRef.current = null;
   };
 
-  const getImageToolbar = (component: GrapesComponentModel): GrapesToolbarItem[] => {
-    const icon = (name: string, fallback: string) => {
+  const getComponentToolbar = (component: GrapesComponentModel): GrapesToolbarItem[] => {
+    const type = String(component.get?.('type') ?? '');
+    const icon = (name: string, fallback: string): string => {
       const fromEditor = editorRef.current?.getIcon?.(name);
       return typeof fromEditor === 'string' && fromEditor.trim() ? fromEditor : fallback;
     };
 
-    return [
-      {
-        label: icon('copy', IMAGE_TOOLBAR_ICON_COPY),
-        command: 'tlb-clone',
+    const toolbarItems: GrapesToolbarItem[] = [];
+
+    const copyable = component.get('copyable') !== false;
+    const removable = component.get('removable') !== false;
+    const draggable = component.get('draggable') !== false;
+
+    // 1. Move Up
+    if (draggable && component.parent?.()) {
+      toolbarItems.push({
+        label: icon('move-up', TOOLBAR_ICON_MOVE_UP),
+        command: 'move-up',
         attributes: {
-          title: 'Copy image',
-          [IMAGE_TOOLBAR_ACTION_ATTR]: 'copy',
+          title: 'Move up',
         },
-      },
-      {
-        label: icon('delete', IMAGE_TOOLBAR_ICON_DELETE),
-        command: 'tlb-delete',
+      });
+    }
+
+    // 2. Drag & Drop
+    if (draggable) {
+      toolbarItems.push({
+        label: icon('move', TOOLBAR_ICON_DRAG),
+        command: 'tlb-move',
         attributes: {
-          title: 'Delete image',
-          [IMAGE_TOOLBAR_ACTION_ATTR]: 'delete',
+          title: 'Drag element',
         },
-      },
-      {
+      });
+    }
+
+    // 3. Link (where applicable)
+    if (type === 'mj-image' || type === 'mj-text' || type === 'mj-button' || type === 'mj-navbar-link' || type === 'mj-social-element') {
+      toolbarItems.push({
         label: IMAGE_TOOLBAR_ICON_LINK,
         command: () => {
           const selectedNow =
             (editorRef.current?.getSelected?.() as GrapesComponentModel | null) ?? component;
-          openImageLinkDialog(selectedNow);
+          const currentType = String(selectedNow?.get?.('type') ?? '');
+          if (currentType === 'mj-image') {
+            openImageLinkDialog(selectedNow);
+          } else {
+            openLinkDialog({
+              range: null,
+              currentHref: '',
+              rte: null as any,
+            });
+          }
         },
         attributes: {
-          title: 'Edit image link',
+          title: 'Edit link',
           [IMAGE_TOOLBAR_ACTION_ATTR]: 'link',
         },
-      },
-    ];
-  };
-
-  const isNormalizedImageToolbar = (toolbar: unknown): boolean => {
-    if (!Array.isArray(toolbar) || toolbar.length !== 3) {
-      return false;
+      });
     }
 
-    const actions = toolbar.map(
-      (item) => (item as { attributes?: Record<string, string> })?.attributes?.[IMAGE_TOOLBAR_ACTION_ATTR] ?? '',
-    );
-    return actions[0] === 'copy' && actions[1] === 'delete' && actions[2] === 'link';
+    // 4. Copy
+    if (copyable) {
+      toolbarItems.push({
+        label: icon('copy', IMAGE_TOOLBAR_ICON_COPY),
+        command: 'tlb-clone',
+        attributes: {
+          title: 'Copy element',
+          [IMAGE_TOOLBAR_ACTION_ATTR]: 'copy',
+        },
+      });
+    }
+
+    // 5. Delete
+    if (removable) {
+      toolbarItems.push({
+        label: icon('delete', IMAGE_TOOLBAR_ICON_DELETE),
+        command: 'tlb-delete',
+        attributes: {
+          title: 'Delete element',
+          [IMAGE_TOOLBAR_ACTION_ATTR]: 'delete',
+        },
+      });
+    }
+
+    return toolbarItems;
   };
 
-  const normalizeImageComponentInteraction = (component: GrapesComponentModel | null) => {
-    if (!component || String(component.get?.('type') ?? '') !== 'mj-image') {
+  const isNormalizedComponentToolbar = (toolbar: unknown, component: GrapesComponentModel): boolean => {
+    if (!Array.isArray(toolbar)) {
+      return false;
+    }
+    const type = String(component.get?.('type') ?? '');
+    const supportsLink = type === 'mj-image' || type === 'mj-text' || type === 'mj-button' || type === 'mj-navbar-link' || type === 'mj-social-element';
+    const hasLinkButton = toolbar.some((item) => (item as any)?.attributes?.[IMAGE_TOOLBAR_ACTION_ATTR] === 'link');
+    
+    if (supportsLink && !hasLinkButton) {
+      return false;
+    }
+    
+    return toolbar.length >= 3;
+  };
+
+  const normalizeComponentInteraction = (component: GrapesComponentModel | null) => {
+    if (!component) {
       return;
     }
 
-    if (component.get('editable') !== false) {
-      // Prevent GrapesJS default dblclick image modal ("Select Image").
-      component.set('editable', false, { silent: true });
+    const type = String(component.get?.('type') ?? '');
+    if (type === 'mj-image') {
+      if (component.get('editable') !== false) {
+        component.set('editable', false, { silent: true });
+      }
     }
 
     const toolbar = component.get('toolbar');
-    if (!isNormalizedImageToolbar(toolbar)) {
-      component.set('toolbar', getImageToolbar(component));
+    if (!isNormalizedComponentToolbar(toolbar, component)) {
+      component.set('toolbar', getComponentToolbar(component));
     }
   };
 
@@ -1473,7 +1532,7 @@ export function LayoutTemplateEditor({
       return;
     }
 
-    normalizeImageComponentInteraction(current);
+    normalizeComponentInteraction(current);
     sectionBackgroundTargetRef.current = null;
     setImagePickerMode('image');
     imageReplaceTargetRef.current = current;
@@ -2281,7 +2340,7 @@ export function LayoutTemplateEditor({
 
     const type = String(cmp.get?.('type') ?? '');
     if (type === 'mj-image') {
-      normalizeImageComponentInteraction(cmp as unknown as GrapesComponentModel);
+      normalizeComponentInteraction(cmp as unknown as GrapesComponentModel);
       addTraits([
         { type: 'text', name: 'href', label: 'Image Link', placeholder: 'https://example.com' },
         {
@@ -2619,8 +2678,20 @@ export function LayoutTemplateEditor({
           }, 650);
         };
 
-        const onCanvasMouseDown = () => {
+        const onCanvasMouseDown = (event: MouseEvent) => {
           frameWin.focus();
+
+          if (event.ctrlKey || event.shiftKey || event.altKey) {
+            const target = event.target as HTMLElement | null;
+            if (target) {
+              const comp = editor.DomComponents?.getComponent?.(target) as GrapesComponentModel | null;
+              if (comp && comp.get?.('draggable') !== false) {
+                editor.select?.(comp);
+                editor.runCommand?.('tlb-move', { event });
+                event.preventDefault();
+              }
+            }
+          }
         };
 
         frameDoc.addEventListener('selectionchange', onSelectionUpdate, true);
@@ -2842,12 +2913,15 @@ export function LayoutTemplateEditor({
       // Close text editor toolbar when repositioning or moving components
       editor.on('run:tlb-move:start', () => {
         exitRteModeAndHideToolbar();
+        editor.trigger?.('change:canvasOffset');
       });
       editor.on('sorter:drag:start', () => {
         exitRteModeAndHideToolbar();
+        editor.trigger?.('change:canvasOffset');
       });
       editor.on('component:drag:start', () => {
         exitRteModeAndHideToolbar();
+        editor.trigger?.('change:canvasOffset');
       });
       editor.on('update', () => {
         debouncedEnsureCanvasScroll();
@@ -2883,7 +2957,7 @@ export function LayoutTemplateEditor({
 
       editor.on('component:selected', (component) => {
         const selected = component as GrapesComponentModel;
-        normalizeImageComponentInteraction(selected);
+        normalizeComponentInteraction(selected);
         setSelectedComponent(selected);
         bumpSelectedComponent();
 
@@ -2927,7 +3001,7 @@ export function LayoutTemplateEditor({
         }
 
         if (currentSelected) {
-          normalizeImageComponentInteraction(currentSelected);
+          normalizeComponentInteraction(currentSelected);
           setSelectedComponent(currentSelected);
           bumpSelectedComponent();
 
@@ -2963,7 +3037,7 @@ export function LayoutTemplateEditor({
       });
       editor.on('component:add', (component) => {
         const child = component as GrapesComponentModel;
-        normalizeImageComponentInteraction(child);
+        normalizeComponentInteraction(child);
         const childType = String(child.get('type') ?? '');
         if (!shouldReceiveSectionLink(childType)) {
           return;
@@ -3023,7 +3097,11 @@ export function LayoutTemplateEditor({
         const wrapper = editor.getWrapper?.();
         const images = wrapper?.findType?.('mj-image') ?? [];
         for (const imageComponent of images) {
-          normalizeImageComponentInteraction(imageComponent as GrapesComponentModel);
+          normalizeComponentInteraction(imageComponent as GrapesComponentModel);
+        }
+        const texts = wrapper?.findType?.('mj-text') ?? [];
+        for (const textComponent of texts) {
+          normalizeComponentInteraction(textComponent as GrapesComponentModel);
         }
       });
       ensureCanvasScroll();
