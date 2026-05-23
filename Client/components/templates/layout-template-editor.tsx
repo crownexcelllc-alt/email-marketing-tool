@@ -99,6 +99,11 @@ interface GrapesEditorInstance {
   destroy: () => void;
   DomComponents?: {
     getType?: (type: string) => unknown;
+    getComponent?: (el: HTMLElement) => unknown;
+  };
+  Commands?: {
+    add?: (id: string, command: unknown) => unknown;
+    get?: (id: string) => unknown;
   };
   UndoManager?: {
     undo: (all?: boolean) => void;
@@ -139,6 +144,8 @@ interface GrapesComponentModel {
   getTrait?: (id: string) => unknown;
   getTraits?: () => Array<{ get?: (key: string) => unknown }>;
   addTrait?: (trait: TraitDefinition | TraitDefinition[]) => unknown;
+  clone?: () => GrapesComponentModel;
+  destroy?: () => void;
 }
 
 type TraitOption = { id: string; label: string };
@@ -2568,6 +2575,8 @@ export function LayoutTemplateEditor({
 
       editorRef.current = editor;
 
+
+
       if (fullHeight) {
         editor.setDevice?.('Desktop');
       }
@@ -2610,48 +2619,6 @@ export function LayoutTemplateEditor({
           }, 650);
         };
 
-        const onCanvasClick = (event: MouseEvent) => {
-          const target = event.target as HTMLElement | null;
-          if (!target) return;
-
-          // 1. Prevent link redirection in edit mode
-          const anchor = target.closest('a');
-          if (anchor) {
-            event.preventDefault();
-          }
-
-          // 2. Ensure iframe window focus
-          frameWin.focus();
-
-          // 3. Selection stability fallback
-          // If clicked inside an active contenteditable element, let standard cursor selection/editing work naturally.
-          if (target.closest('[contenteditable="true"]')) {
-            return;
-          }
-
-          try {
-            let component: GrapesComponentModel | null = null;
-            let current: HTMLElement | null = target;
-            while (current && current.tagName?.toLowerCase() !== 'body') {
-              const currentWithGjsv = current as HTMLElement & { __gjsv?: { model?: GrapesComponentModel } };
-              if (currentWithGjsv.__gjsv?.model) {
-                component = currentWithGjsv.__gjsv.model;
-                break;
-              }
-              current = current.parentElement;
-            }
-
-            if (component) {
-              const currentSelected = editor.getSelected?.();
-              if (currentSelected !== component) {
-                editor.select?.(component);
-              }
-            }
-          } catch (err) {
-            console.warn('Failed to retrieve or select component from element:', err);
-          }
-        };
-
         const onCanvasMouseDown = () => {
           frameWin.focus();
         };
@@ -2660,7 +2627,6 @@ export function LayoutTemplateEditor({
         frameDoc.addEventListener('mouseup', onSelectionUpdate, true);
         frameDoc.addEventListener('keyup', onSelectionUpdate, true);
         frameDoc.addEventListener('input', onContentInput, true);
-        frameDoc.addEventListener('click', onCanvasClick, true);
         frameDoc.addEventListener('mousedown', onCanvasMouseDown, true);
         frameWin.addEventListener('scroll', updateCustomToolbarPosition, true);
         window.addEventListener('scroll', updateCustomToolbarPosition, true);
@@ -2671,7 +2637,6 @@ export function LayoutTemplateEditor({
           frameDoc.removeEventListener('mouseup', onSelectionUpdate, true);
           frameDoc.removeEventListener('keyup', onSelectionUpdate, true);
           frameDoc.removeEventListener('input', onContentInput, true);
-          frameDoc.removeEventListener('click', onCanvasClick, true);
           frameDoc.removeEventListener('mousedown', onCanvasMouseDown, true);
           frameWin.removeEventListener('scroll', updateCustomToolbarPosition, true);
           window.removeEventListener('scroll', updateCustomToolbarPosition, true);
@@ -2739,6 +2704,9 @@ export function LayoutTemplateEditor({
             if (frameEl) {
               frameEl.style.height = adjustedHeight;
             }
+            // Trigger GrapesJS to recalculate its internal canvas offsets
+            editor.trigger('change:canvasOffset');
+            updateCustomToolbarPosition();
           }
         }
 
@@ -2771,6 +2739,9 @@ export function LayoutTemplateEditor({
           `;
           frameDoc.head.appendChild(styleEl);
         }
+
+        // Recalculate selection coordinates to keep toolbar/borders aligned with scrolled/resized elements
+        updateSelectionCoordinates();
 
         // Legacy link click handler removed. Unified canvas click handler is now registered in attachFrameToolbarListeners.
       };
@@ -2878,7 +2849,13 @@ export function LayoutTemplateEditor({
       editor.on('component:drag:start', () => {
         exitRteModeAndHideToolbar();
       });
-      editor.on('update', debouncedEnsureCanvasScroll);
+      editor.on('update', () => {
+        debouncedEnsureCanvasScroll();
+        updateCustomToolbarPosition();
+      });
+      editor.on('canvasScroll', updateCustomToolbarPosition);
+      editor.on('sorter:drag:end', updateCustomToolbarPosition);
+      editor.on('component:drag:end', updateCustomToolbarPosition);
       const startInlineTextEdit = (component: GrapesComponentModel) => {
         const type = String(component.get('type') ?? '');
         if (!supportsInlineTextEditing(type)) {
@@ -3055,7 +3032,8 @@ export function LayoutTemplateEditor({
       handleHostMouseDown = (event: MouseEvent) => {
         const target = event.target as HTMLElement | null;
         if (target && target.closest('.gjs-toolbar')) {
-          exitRteModeAndHideToolbar();
+          setIsCustomRteToolbarVisible(false);
+          setCustomRteToolbarPos(null);
         }
       };
       document.addEventListener('mousedown', handleHostMouseDown, true);
