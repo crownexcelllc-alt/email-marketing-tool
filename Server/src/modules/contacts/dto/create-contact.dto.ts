@@ -30,11 +30,11 @@ export class CreateContactDto {
   @MaxLength(80)
   readonly lastName?: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MaxLength(160)
-  readonly fullName!: string;
+  readonly fullName?: string;
 
   @IsNotEmpty()
   @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))

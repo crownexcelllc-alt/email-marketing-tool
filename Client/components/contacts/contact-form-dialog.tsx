@@ -135,7 +135,7 @@ export function ContactFormDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="fullName">Contact Name <span className="text-rose-500">*</span></Label>
+              <Label htmlFor="fullName">Contact Name</Label>
               <Input
                 id="fullName"
                 className="border-zinc-800 bg-zinc-900 text-zinc-100"

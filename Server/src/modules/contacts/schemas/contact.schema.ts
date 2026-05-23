@@ -22,7 +22,7 @@ export class Contact {
   @Prop({ type: String, default: '' })
   lastName!: string;
 
-  @Prop({ required: true, trim: true, maxlength: 160 })
+  @Prop({ required: false, default: '', trim: true, maxlength: 160 })
   fullName!: string;
 
   @Prop({ type: String, required: true, lowercase: true, trim: true })

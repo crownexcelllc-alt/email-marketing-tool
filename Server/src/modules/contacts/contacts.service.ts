@@ -774,9 +774,7 @@ export class ContactsService {
     const phone = this.normalizePhone(input.phone);
     const labels = this.normalizeLabels(input.labels ?? []);
 
-    if (!fullName) {
-      throw new AppException(HttpStatus.BAD_REQUEST, 'FULL_NAME_REQUIRED', 'Contact Name is required');
-    }
+
     if (!email) {
       throw new AppException(HttpStatus.BAD_REQUEST, 'EMAIL_REQUIRED', 'Email is required');
     }

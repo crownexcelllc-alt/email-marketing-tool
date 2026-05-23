@@ -169,9 +169,6 @@ function classifyRow(
   } else if (!hasEmail) {
     status = 'rejected';
     reason = 'Email is required';
-  } else if (!hasName) {
-    status = 'rejected';
-    reason = 'Name is required';
   } else if (isDuplicate) {
     status = 'duplicate';
     reason = 'Duplicate email';
@@ -179,8 +176,8 @@ function classifyRow(
     status = 'duplicate';
     reason = 'Contact already exists';
   } else {
-    // Both Name and Email are present
-    const isMissingOptional = !phone || !company || !category;
+    // Email is present (Name is optional)
+    const isMissingOptional = !phone || !company || !category || !name;
     if (isMissingOptional) {
       status = 'missing_fields';
       reason = 'Missing optional fields';
