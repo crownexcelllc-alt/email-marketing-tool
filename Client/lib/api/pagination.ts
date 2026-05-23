@@ -1,4 +1,4 @@
-export const BACKEND_MAX_PAGE_LIMIT = 100;
+export const BACKEND_MAX_PAGE_LIMIT = 1000000;
 
 export function clampPageLimit(limit: number | undefined, fallback: number): number {
   const parsed = Number.isFinite(limit) ? Math.trunc(limit as number) : fallback;

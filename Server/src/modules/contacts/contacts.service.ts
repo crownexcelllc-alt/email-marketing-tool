@@ -200,16 +200,17 @@ export class ContactsService {
       filter.source = query.source;
     }
     if (query.category) {
-      const normalizedCategory = this.cleanString(query.category).toLowerCase();
+      const categoryVal = this.cleanString(query.category);
+      const categoryRegex = new RegExp(`^${this.escapeRegex(categoryVal)}$`, 'i');
       andConditions.push({
         $or: [
-          { category: normalizedCategory },
+          { category: categoryRegex },
           {
             $and: [
               {
                 $or: [{ category: '' }, { category: null }, { category: { $exists: false } }],
               },
-              { 'labels.0': normalizedCategory },
+              { 'labels.0': categoryRegex },
             ],
           },
           {
@@ -224,7 +225,7 @@ export class ContactsService {
                   { 'labels.0': '' },
                 ],
               },
-              { 'tags.0': normalizedCategory },
+              { 'tags.0': categoryRegex },
             ],
           },
         ],
@@ -360,19 +361,17 @@ export class ContactsService {
                     },
                   },
                   in: {
-                    $toLower: {
-                      $cond: [
-                        { $gt: [{ $strLenCP: '$$categoryValue' }, 0] },
-                        '$$categoryValue',
-                        {
-                          $cond: [
-                            { $gt: [{ $strLenCP: '$$labelValue' }, 0] },
-                            '$$labelValue',
-                            '$$tagValue',
-                          ],
-                        },
-                      ],
-                    },
+                    $cond: [
+                      { $gt: [{ $strLenCP: '$$categoryValue' }, 0] },
+                      '$$categoryValue',
+                      {
+                        $cond: [
+                          { $gt: [{ $strLenCP: '$$labelValue' }, 0] },
+                          '$$labelValue',
+                          '$$tagValue',
+                        ],
+                      },
+                    ],
                   },
                 },
               },
@@ -1023,7 +1022,7 @@ export class ContactsService {
   }
 
   private normalizeCategory(category?: string): string {
-    return this.cleanString(category).toLowerCase();
+    return this.cleanString(category);
   }
 
   private normalizeCustomFields(

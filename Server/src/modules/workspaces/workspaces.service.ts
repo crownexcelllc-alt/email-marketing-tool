@@ -1,4 +1,4 @@
-﻿import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { AppException } from '../../common/exceptions/app.exception';
@@ -48,7 +48,7 @@ export class WorkspacesService {
     const normalized = Array.from(
       new Set(
         categories
-          .map((category) => category.trim().toLowerCase())
+          .map((category) => category.trim())
           .filter((category) => category.length > 0),
       ),
     );
@@ -76,12 +76,12 @@ export class WorkspacesService {
     }
 
     return Array.from(
-      new Set((workspace.categories ?? []).map((category) => category.trim().toLowerCase()).filter(Boolean)),
+      new Set((workspace.categories ?? []).map((category) => category.trim()).filter(Boolean)),
     ).sort((a, b) => a.localeCompare(b));
   }
 
   async removeCategory(workspaceId: string, category: string): Promise<void> {
-    const normalizedCategory = category.trim().toLowerCase();
+    const normalizedCategory = category.trim();
     if (!normalizedCategory) {
       return;
     }
