@@ -234,12 +234,22 @@ export async function parseCsvForPreview(
       record[header] = cells[col]?.trim() ?? '';
     });
 
-    const email = resolveValue(record, EMAIL_KEYS).toLowerCase();
-    const isDuplicate = email ? seenEmails.has(email) : false;
-    const isServerDuplicate = email ? serverEmailsSet.has(email) : false;
+    // Skip empty lines, matching the server's skip_empty_lines: true behaviour
+    const name = resolveValue(record, NAME_KEYS);
+    const email = resolveValue(record, EMAIL_KEYS);
+    const phone = resolveValue(record, PHONE_KEYS);
+    const company = resolveValue(record, COMPANY_KEYS);
+    const hasIdentifier = !!(name || company || email || phone);
+    if (!hasIdentifier) {
+      return;
+    }
+
+    const emailLower = email.toLowerCase();
+    const isDuplicate = emailLower ? seenEmails.has(emailLower) : false;
+    const isServerDuplicate = emailLower ? serverEmailsSet.has(emailLower) : false;
     
-    if (email && !isDuplicate) {
-      seenEmails.add(email);
+    if (emailLower && !isDuplicate) {
+      seenEmails.add(emailLower);
     }
 
     const row = classifyRow(index + 2, record, isDuplicate, isServerDuplicate); // rowNumber starts at 2 (1 = header)

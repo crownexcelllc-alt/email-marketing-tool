@@ -1,4 +1,4 @@
-﻿import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { parse } from 'csv-parse/sync';
 import { AppException } from '../../common/exceptions/app.exception';
 import { ContactSource } from './constants/contact.enums';
@@ -55,7 +55,7 @@ export class ContactsImportService {
   ): ParsedContactCsvRow {
     const normalizedRecord = this.normalizeRecordKeys(record);
 
-    const parsedCategory = this.parseList(this.readValue(normalizedRecord, ['category', 'categories']));
+    const parsedCategory = this.parseList(this.readValue(normalizedRecord, ['category', 'categories', 'group', 'groups', 'type']));
     const parsedLabels = this.parseList(this.readValue(normalizedRecord, ['labels', 'label', 'tags']));
     const firstName = this.readValue(normalizedRecord, ['firstname', 'first_name']);
     const lastName = this.readValue(normalizedRecord, ['lastname', 'last_name']);
@@ -68,9 +68,9 @@ export class ContactsImportService {
     ]);
     const fullNameFromSplitNames = [firstName, lastName].filter(Boolean).join(' ').trim();
     const fullName = fullNameFromColumns ?? (fullNameFromSplitNames || undefined);
-    const telephone = this.readValue(normalizedRecord, ['telephone', 'phone', 'phone number']);
-    const mobile = this.readValue(normalizedRecord, ['mobile', 'mobile number']);
-    const additionalNumber = this.readValue(normalizedRecord, ['additional number', 'additionalnumber']);
+    const telephone = this.readValue(normalizedRecord, ['telephone', 'phone', 'phone number', 'tel', 'cell']);
+    const mobile = this.readValue(normalizedRecord, ['mobile', 'mobile number', 'mobile_number']);
+    const additionalNumber = this.readValue(normalizedRecord, ['additional number', 'additionalnumber', 'additional_number']);
     const city = this.readValue(normalizedRecord, ['city']);
     const country = this.readValue(normalizedRecord, ['country']);
     const designation = this.readValue(normalizedRecord, ['designation', 'desigination']);
@@ -82,13 +82,13 @@ export class ContactsImportService {
       firstName,
       lastName,
       fullName,
-      email: this.readValue(normalizedRecord, ['email']),
+      email: this.readValue(normalizedRecord, ['email', 'email address', 'email_address', 'e-mail', 'mail', 'emailaddress']),
       phone:
         mobile ??
         telephone ??
         additionalNumber ??
         this.readValue(normalizedRecord, ['phonenumber', 'phone_number']),
-      company: this.readValue(normalizedRecord, ['company']),
+      company: this.readValue(normalizedRecord, ['company', 'organization', 'org', 'business']),
       category: parsedCategory?.[0],
       labels: parsedLabels,
       customFields: this.buildCustomFields({
