@@ -2879,7 +2879,8 @@ export function LayoutTemplateEditor({
           styleEl.id = 'mjml-frame-ux-fixes';
           styleEl.textContent = `
             body {
-              padding: 12px 24px 24px !important;
+              margin: 0 !important;
+              padding: 16px 24px 48px !important;
               box-sizing: border-box !important;
             }
 
@@ -4329,6 +4330,7 @@ export function LayoutTemplateEditor({
             background: transparent !important;
             width: 100% !important;
             height: 100% !important;
+            top: 0 !important;
             left: 0 !important;
             right: 0 !important;
           }
