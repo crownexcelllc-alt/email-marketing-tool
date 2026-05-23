@@ -651,6 +651,9 @@ export class ContactsService {
 
     const existingEmailsSet = new Set(existingContacts.map((c) => c.emailNormalized.toLowerCase()));
 
+    // Keep track of emails processed in this CSV to handle duplicates within the file itself
+    const processedEmailsInCsv = new Set<string>();
+
     let created = 0;
     let skipped = 0;
     let invalid = 0;
@@ -664,44 +667,65 @@ export class ContactsService {
       reason: string;
     }> = [];
 
+    const bulkOps: any[] = [];
+    const now = new Date();
+
     for (const row of parsed.rows) {
       try {
-        const result = await this.createFromImportRow(workspaceId, row, dto.category, existingEmailsSet);
-        if (result === 'created') {
-          created += 1;
-        } else {
-          skipped += 1;
-          skippedRows.push({
-            row: row.rowNumber,
-            name: this.cleanString(row.fullName) ||
-              [row.firstName, row.lastName].filter(Boolean).join(' ').trim() ||
-              this.cleanString(row.email) ||
-              this.cleanString(row.phone) ||
-              `Row ${row.rowNumber}`,
-            email: row.email ?? '',
-            phone: row.phone ?? '',
-            company: row.company ?? '',
-            reason: 'Already exists in system (duplicate)',
-          });
-        }
-      } catch (error) {
-        if (error instanceof AppException && this.isDuplicateContactException(error)) {
-          skipped += 1;
-          skippedRows.push({
-            row: row.rowNumber,
-            name: this.cleanString(row.fullName) ||
-              [row.firstName, row.lastName].filter(Boolean).join(' ').trim() ||
-              this.cleanString(row.email) ||
-              this.cleanString(row.phone) ||
-              `Row ${row.rowNumber}`,
-            email: row.email ?? '',
-            phone: row.phone ?? '',
-            company: row.company ?? '',
-            reason: 'Already exists in system (duplicate)',
-          });
-          continue;
+        const payload = this.buildContactPayload({
+          firstName: row.firstName,
+          lastName: row.lastName,
+          fullName: row.fullName,
+          email: row.email,
+          phone: row.phone,
+          company: row.company,
+          category: dto.category || row.category,
+          labels: row.labels,
+          customFields: row.customFields,
+          notes: row.notes,
+          source: row.source,
+          emailStatus: ContactEmailStatus.UNKNOWN,
+          whatsappStatus: ContactWhatsappStatus.UNKNOWN,
+          subscriptionStatus: ContactSubscriptionStatus.SUBSCRIBED,
+        });
+
+        if (payload.emailNormalized) {
+          const emailLower = payload.emailNormalized.toLowerCase();
+
+          // Check if duplicate on server or duplicate within this CSV file
+          if (existingEmailsSet.has(emailLower) || processedEmailsInCsv.has(emailLower)) {
+            skipped += 1;
+            skippedRows.push({
+              row: row.rowNumber,
+              name: this.cleanString(row.fullName) ||
+                [row.firstName, row.lastName].filter(Boolean).join(' ').trim() ||
+                this.cleanString(row.email) ||
+                this.cleanString(row.phone) ||
+                `Row ${row.rowNumber}`,
+              email: row.email ?? '',
+              phone: row.phone ?? '',
+              company: row.company ?? '',
+              reason: 'Already exists in system (duplicate)',
+            });
+            continue;
+          }
+
+          processedEmailsInCsv.add(emailLower);
         }
 
+        // Add to bulk insert operations
+        bulkOps.push({
+          insertOne: {
+            document: {
+              workspaceId: this.toObjectId(workspaceId),
+              ...payload,
+              createdAt: now,
+              updatedAt: now,
+            },
+          },
+        });
+        created += 1;
+      } catch (error) {
         invalid += 1;
         invalidRows.push({
           row: row.rowNumber,
@@ -709,6 +733,20 @@ export class ContactsService {
             ? (error.getResponse() as any).message 
             : error instanceof Error ? error.message : 'Invalid row or missing required fields',
         });
+      }
+    }
+
+    // Perform bulk insertion in a single round-trip
+    if (bulkOps.length > 0) {
+      try {
+        await this.contactModel.bulkWrite(bulkOps, { ordered: false });
+      } catch (bulkError: any) {
+        // Handle bulkWrite duplicate key errors gracefully (e.g. from parallel import jobs)
+        if (bulkError.writeErrors) {
+          const duplicateErrorsCount = bulkError.writeErrors.filter((e: any) => e.code === 11000).length;
+          created -= duplicateErrorsCount;
+          skipped += duplicateErrorsCount;
+        }
       }
     }
 
