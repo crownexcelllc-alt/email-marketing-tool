@@ -1265,6 +1265,8 @@ export function LayoutTemplateEditor({
   const refreshCanvasRef = useRef<(() => void) | null>(null);
   const lastAppliedCanvasHeightRef = useRef(0);
   const suppressUserUpdateRef = useRef(true);
+  const isDraggingRef = useRef(false);
+  const isNormalizingRef = useRef(false);
   const syncVersionRef = useRef(0);
   const lastHtmlRef = useRef(value);
   const initialMjmlRef = useRef(ensureMjmlDocument(mjmlValue));
@@ -1519,6 +1521,111 @@ export function LayoutTemplateEditor({
     }
   };
 
+  const normalizeLayoutStructure = (child: GrapesComponentModel) => {
+    if (isNormalizingRef.current) {
+      return;
+    }
+
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    // Defer the normalization so GrapesJS completes its synchronous event cycle
+    window.setTimeout(() => {
+      if (!editorRef.current || isNormalizingRef.current) {
+        return;
+      }
+
+      isNormalizingRef.current = true;
+      try {
+        const childType = String(child.get('type') ?? '');
+        const parent = child.parent?.() ?? null;
+        if (!parent) return;
+
+        const parentType = String(parent.get('type') ?? '');
+
+        // Case 1: Content element dropped directly inside a section/wrapper/hero
+        const isContentElement = !['mj-column', 'mj-section', 'mj-wrapper', 'mj-hero', 'mj-body'].includes(childType);
+        const requiresColumnParent = ['mj-section', 'mj-wrapper', 'mj-hero'].includes(parentType);
+
+        if (isContentElement && requiresColumnParent) {
+          const parentComponents = parent.components?.() as any;
+          if (parentComponents) {
+            const index = parentComponents.indexOf(child);
+            if (index !== -1) {
+              const newColumn = parentComponents.add({
+                type: 'mj-column',
+                draggable: true,
+                droppable: true,
+              }, { at: index });
+
+              const newColComponents = newColumn.components?.() as any;
+              if (newColComponents) {
+                newColComponents.add(child);
+                editor.select?.(child);
+                editor.Canvas?.refresh?.();
+                editor.trigger?.('change:canvasOffset');
+              }
+            }
+          }
+          return;
+        }
+
+        // Case 2: Column dropped inside another column
+        if (childType === 'mj-column' && parentType === 'mj-column') {
+          const grandparent = parent.parent?.();
+          if (grandparent) {
+            const gpComponents = grandparent.components?.() as any;
+            const parentIndex = gpComponents.indexOf(parent);
+            if (parentIndex !== -1) {
+              gpComponents.add(child, { at: parentIndex + 1 });
+              editor.select?.(child);
+              editor.Canvas?.refresh?.();
+              editor.trigger?.('change:canvasOffset');
+            }
+          }
+          return;
+        }
+
+        // Case 3: Section/Hero dropped inside a column
+        if ((childType === 'mj-section' || childType === 'mj-hero') && parentType === 'mj-column') {
+          const grandparent = parent.parent?.();
+          if (grandparent) {
+            const greatgrandparent = grandparent.parent?.();
+            if (greatgrandparent) {
+              const ggComponents = greatgrandparent.components?.() as any;
+              const gpIndex = ggComponents.indexOf(grandparent);
+              if (gpIndex !== -1) {
+                ggComponents.add(child, { at: gpIndex + 1 });
+                editor.select?.(child);
+                editor.Canvas?.refresh?.();
+                editor.trigger?.('change:canvasOffset');
+              }
+            }
+          }
+          return;
+        }
+
+        // Case 4: Section/Hero dropped inside another Section/Hero
+        if ((childType === 'mj-section' || childType === 'mj-hero') && (parentType === 'mj-section' || parentType === 'mj-hero')) {
+          const grandparent = parent.parent?.();
+          if (grandparent) {
+            const gpComponents = grandparent.components?.() as any;
+            const parentIndex = gpComponents.indexOf(parent);
+            if (parentIndex !== -1) {
+              gpComponents.add(child, { at: parentIndex + 1 });
+              editor.select?.(child);
+              editor.Canvas?.refresh?.();
+              editor.trigger?.('change:canvasOffset');
+            }
+          }
+          return;
+        }
+      } finally {
+        isNormalizingRef.current = false;
+      }
+    }, 0);
+  };
+
   const openImageManagerForSelectedImage = () => {
     const editor = editorRef.current;
     const current =
@@ -1744,14 +1851,7 @@ export function LayoutTemplateEditor({
       customToolbarRafRef.current = window.requestAnimationFrame(() => {
         customToolbarRafRef.current = null;
 
-        const editor = editorRef.current;
-        if (editor) {
-          try {
-            editor.Canvas?.refresh?.();
-          } catch (err) {
-            // Ignore refresh canvas errors
-          }
-        }
+
 
         updateSelectionCoordinates();
 
@@ -2588,6 +2688,8 @@ export function LayoutTemplateEditor({
           fromElement: false,
           storageManager: false,
           noticeOnUnload: false,
+          sortable: true,
+          draggableComponents: true,
           height: fullHeight ? '100%' : '78vh',
           panels: fullHeight ? { defaults: [] } : undefined,
           blockManager: fullHeight ? { appendTo: `#${layoutTargets.blocks}` } : undefined,
@@ -2633,6 +2735,47 @@ export function LayoutTemplateEditor({
         }) as GrapesEditorInstance;
 
       editorRef.current = editor;
+
+      // Override component definitions to enforce GrapesJS native sorting best practices
+      const componentManager = (editor as any).Components || (editor as any).DomComponents;
+      if (componentManager) {
+        // Container components
+        const containerTypes = ['mj-section', 'mj-wrapper', 'mj-body', 'mj-column', 'mj-hero', 'mj-group', 'mj-social', 'mj-navbar', 'wrapper'];
+        for (const type of containerTypes) {
+          try {
+            componentManager.addType(type, {
+              extend: type,
+              model: {
+                defaults: {
+                  draggable: type !== 'wrapper' && type !== 'mj-body', // Keep root components non-draggable
+                  droppable: true,
+                  sortable: true,
+                },
+              },
+            });
+          } catch (e) {
+            console.warn(`Failed to override container component type: ${type}`, e);
+          }
+        }
+
+        // Leaf components
+        const leafTypes = ['mj-text', 'mj-image', 'mj-button', 'mj-divider', 'mj-spacer', 'mj-social-element', 'mj-navbar-link'];
+        for (const type of leafTypes) {
+          try {
+            componentManager.addType(type, {
+              extend: type,
+              model: {
+                defaults: {
+                  draggable: true,
+                  droppable: false,
+                },
+              },
+            });
+          } catch (e) {
+            console.warn(`Failed to override leaf component type: ${type}`, e);
+          }
+        }
+      }
 
 
 
@@ -2684,9 +2827,19 @@ export function LayoutTemplateEditor({
           if (event.ctrlKey || event.shiftKey || event.altKey) {
             const target = event.target as HTMLElement | null;
             if (target) {
-              const comp = editor.DomComponents?.getComponent?.(target) as GrapesComponentModel | null;
-              if (comp && comp.get?.('draggable') !== false) {
-                editor.select?.(comp);
+              const selected = editor.getSelected?.() as GrapesComponentModel | null;
+              const selectedEl = selected?.getEl?.();
+              
+              let compToMove: GrapesComponentModel | null = null;
+              
+              if (selected && selectedEl && (selectedEl === target || selectedEl.contains(target))) {
+                compToMove = selected;
+              } else {
+                compToMove = editor.DomComponents?.getComponent?.(target) as GrapesComponentModel | null;
+              }
+
+              if (compToMove && compToMove.get?.('draggable') !== false) {
+                editor.select?.(compToMove);
                 editor.runCommand?.('tlb-move', { event });
                 event.preventDefault();
               }
@@ -2719,83 +2872,17 @@ export function LayoutTemplateEditor({
       // No ensureRteToolbarInteraction needed — custom React toolbar handles all interactions.
 
       const ensureCanvasScroll = () => {
-        const frameBody = editor.Canvas?.getBody?.();
         const frameDoc = editor.Canvas?.getDocument?.();
-        const frameEl = editor.Canvas?.getFrameEl?.();
-        if (frameBody) {
-          frameBody.style.overflowY = 'visible';
-          frameBody.style.overflowX = 'visible';
-          frameBody.style.height = 'auto';
-          frameBody.style.minHeight = 'auto';
-          frameBody.style.background = 'transparent';
-        }
-        if (frameDoc?.documentElement) {
-          frameDoc.documentElement.style.overflowY = 'visible';
-          frameDoc.documentElement.style.overflowX = 'visible';
-          frameDoc.documentElement.style.height = 'auto';
-          frameDoc.documentElement.style.minHeight = 'auto';
-          frameDoc.documentElement.style.background = 'transparent';
-        }
-        if (frameEl) {
-          frameEl.style.overflow = 'visible';
-          frameEl.setAttribute('scrolling', 'no');
-        }
-
-        const wrapperEl = frameBody
-          ? (frameBody.querySelector('#wrapper') || frameBody.firstElementChild) as HTMLElement | null
-          : null;
-        const bodyChildren = wrapperEl
-          ? (Array.from(wrapperEl.children) as HTMLElement[])
-          : (frameBody ? (Array.from(frameBody.children) as HTMLElement[]) : []);
-        const childrenContentHeight = bodyChildren.reduce((maxHeight, child) => {
-          const childBottom = child.offsetTop + Math.max(child.offsetHeight, child.scrollHeight);
-          return Math.max(maxHeight, childBottom);
-        }, 0);
-
-        // Measure only intrinsic content height. Using documentElement.scrollHeight here
-        // causes a feedback loop because it can include the iframe viewport height.
-        const intrinsicContentHeight = Math.max(
-          frameBody?.scrollHeight ?? 0,
-          frameBody?.offsetHeight ?? 0,
-          childrenContentHeight,
-          700,
-        );
-        const targetHeight = Math.max(700, intrinsicContentHeight + 100);
-        const roundedTargetHeight = Math.ceil(targetHeight);
-        const adjustedHeight = `${roundedTargetHeight}px`;
-
-
-        if (lastAppliedCanvasHeightRef.current !== roundedTargetHeight) {
-          const heightDiff = Math.abs(lastAppliedCanvasHeightRef.current - roundedTargetHeight);
-          if (heightDiff > 15) {
-            lastAppliedCanvasHeightRef.current = roundedTargetHeight;
-            if (containerRef.current) {
-              containerRef.current.style.height = adjustedHeight;
-            }
-            if (frameEl) {
-              frameEl.style.height = adjustedHeight;
-            }
-            // Trigger GrapesJS to recalculate its internal canvas offsets
-            editor.trigger('change:canvasOffset');
-            updateCustomToolbarPosition();
-          }
-        }
-
-        if (frameDoc && !frameDoc.documentElement.dataset.mjmlImageLoadHandlerAttached) {
-          frameDoc.documentElement.dataset.mjmlImageLoadHandlerAttached = 'true';
-          frameDoc.addEventListener(
-            'load',
-            () => {
-              ensureCanvasScroll();
-            },
-            true,
-          );
-        }
 
         if (frameDoc && !frameDoc.getElementById('mjml-frame-ux-fixes')) {
           const styleEl = frameDoc.createElement('style');
           styleEl.id = 'mjml-frame-ux-fixes';
           styleEl.textContent = `
+            body {
+              padding: 12px 24px 24px !important;
+              box-sizing: border-box !important;
+            }
+
             .gjs-selected,
             .gjs-hovered,
             .gjs-selected-parent,
@@ -2811,10 +2898,8 @@ export function LayoutTemplateEditor({
           frameDoc.head.appendChild(styleEl);
         }
 
-        // Recalculate selection coordinates to keep toolbar/borders aligned with scrolled/resized elements
+        // Recalculate selection coordinates to keep toolbar/borders aligned
         updateSelectionCoordinates();
-
-        // Legacy link click handler removed. Unified canvas click handler is now registered in attachFrameToolbarListeners.
       };
 
       refreshCanvasRef.current = ensureCanvasScroll;
@@ -2912,24 +2997,44 @@ export function LayoutTemplateEditor({
       });
       // Close text editor toolbar when repositioning or moving components
       editor.on('run:tlb-move:start', () => {
+        isDraggingRef.current = true;
         exitRteModeAndHideToolbar();
         editor.trigger?.('change:canvasOffset');
       });
       editor.on('sorter:drag:start', () => {
+        isDraggingRef.current = true;
         exitRteModeAndHideToolbar();
         editor.trigger?.('change:canvasOffset');
       });
       editor.on('component:drag:start', () => {
+        isDraggingRef.current = true;
         exitRteModeAndHideToolbar();
         editor.trigger?.('change:canvasOffset');
       });
       editor.on('update', () => {
+        if (isDraggingRef.current) {
+          return;
+        }
         debouncedEnsureCanvasScroll();
         updateCustomToolbarPosition();
       });
       editor.on('canvasScroll', updateCustomToolbarPosition);
-      editor.on('sorter:drag:end', updateCustomToolbarPosition);
-      editor.on('component:drag:end', updateCustomToolbarPosition);
+      editor.on('sorter:drag:end', () => {
+        isDraggingRef.current = false;
+        updateCustomToolbarPosition();
+        const selected = editor.getSelected?.() as GrapesComponentModel | null;
+        if (selected) {
+          normalizeLayoutStructure(selected);
+        }
+      });
+      editor.on('component:drag:end', () => {
+        isDraggingRef.current = false;
+        updateCustomToolbarPosition();
+        const selected = editor.getSelected?.() as GrapesComponentModel | null;
+        if (selected) {
+          normalizeLayoutStructure(selected);
+        }
+      });
       const startInlineTextEdit = (component: GrapesComponentModel) => {
         const type = String(component.get('type') ?? '');
         if (!supportsInlineTextEditing(type)) {
@@ -3037,8 +3142,11 @@ export function LayoutTemplateEditor({
       });
       editor.on('component:add', (component) => {
         const child = component as GrapesComponentModel;
+        const childType = String(child.get?.('type') ?? '');
+
         normalizeComponentInteraction(child);
-        const childType = String(child.get('type') ?? '');
+        normalizeLayoutStructure(child);
+
         if (!shouldReceiveSectionLink(childType)) {
           return;
         }
@@ -3094,14 +3202,31 @@ export function LayoutTemplateEditor({
         }
       });
       editor.on('load', () => {
-        const wrapper = editor.getWrapper?.();
-        const images = wrapper?.findType?.('mj-image') ?? [];
-        for (const imageComponent of images) {
-          normalizeComponentInteraction(imageComponent as GrapesComponentModel);
-        }
-        const texts = wrapper?.findType?.('mj-text') ?? [];
-        for (const textComponent of texts) {
-          normalizeComponentInteraction(textComponent as GrapesComponentModel);
+        // Inject empty space dropzone placeholders
+        const frameDoc = editor.Canvas?.getDocument?.();
+        if (frameDoc) {
+          const style = frameDoc.createElement('style');
+          style.innerHTML = `
+            /* Show placeholder min-height for empty sections/columns during drag and drop */
+            .gjs-dashed :empty,
+            .gjs-dashed *:empty {
+              min-height: 50px !important;
+              outline: 1px dotted rgba(0, 0, 0, 0.2) !important;
+              outline-offset: -2px !important;
+              background-color: rgba(0, 0, 0, 0.02) !important;
+            }
+            .gjs-dashed mj-section:empty, .gjs-dashed [data-gjs-type="mj-section"]:empty {
+              min-height: 80px !important;
+              background-color: rgba(0, 0, 0, 0.01) !important;
+              outline: 1px dashed rgba(0, 0, 0, 0.15) !important;
+            }
+            .gjs-dashed mj-column:empty, .gjs-dashed [data-gjs-type="mj-column"]:empty {
+              min-height: 60px !important;
+              outline: 1px dashed rgba(0, 0, 0, 0.15) !important;
+              background-color: rgba(0, 0, 0, 0.02) !important;
+            }
+          `;
+          frameDoc.head.appendChild(style);
         }
       });
       ensureCanvasScroll();
@@ -3149,11 +3274,10 @@ export function LayoutTemplateEditor({
           clearTimeout(updateTimerRef.current);
         }
 
-        if (!suppressUserUpdateRef.current) {
-          onUserEditRef.current?.();
-        }
-
         updateTimerRef.current = setTimeout(() => {
+          if (!suppressUserUpdateRef.current) {
+            onUserEditRef.current?.();
+          }
           void syncCompiledHtml();
         }, 650);
       });
@@ -3429,14 +3553,8 @@ export function LayoutTemplateEditor({
               <div id={layoutTargets.blocks} className="editor-pane-scroll mt-2 min-h-0 flex-1 overflow-y-auto" />
             </aside>
 
-          <main className="relative min-h-0 min-w-0 overflow-y-auto overflow-x-hidden bg-[#dfe3e7]">
-            <div className="min-h-full w-full px-4 pt-4 pb-24">
-              <div
-                className="min-h-[58vh] overflow-visible rounded-md border border-[#c9d4de] bg-transparent"
-                style={{ height: '700px' }}
-                ref={containerRef}
-              />
-            </div>
+          <main className="relative min-h-0 min-w-0 overflow-hidden bg-[#dfe3e7]">
+            <div className="h-full w-full" ref={containerRef} />
           </main>
 
           <aside className="flex h-full min-h-0 flex-col overflow-hidden border-l border-slate-300 bg-[#f3f6f8]">
@@ -4180,9 +4298,9 @@ export function LayoutTemplateEditor({
         <style jsx global>{`
           .mjml-shell .gjs-editor,
           .mjml-shell .gjs-editor-cont,
-          .mjml-shell .gjs-cv-canvas,
           .mjml-shell .gjs-frame-wrapper {
             top: 0 !important;
+            height: 100% !important;
           }
 
           .mjml-shell .gjs-toolbar {
@@ -4208,8 +4326,11 @@ export function LayoutTemplateEditor({
           }
 
           .mjml-shell .gjs-cv-canvas {
-            overflow: visible !important;
             background: transparent !important;
+            width: 100% !important;
+            height: 100% !important;
+            left: 0 !important;
+            right: 0 !important;
           }
 
           /* ── Native GrapesJS RTE toolbar is completely disabled ── */
@@ -4223,9 +4344,14 @@ export function LayoutTemplateEditor({
             overflow: hidden !important;
           }
 
-          .mjml-shell .gjs-frame-wrapper,
+          .mjml-shell .gjs-frame-wrapper {
+            width: 100% !important;
+            max-width: 100% !important;
+            background: transparent !important;
+          }
           .mjml-shell .gjs-frame {
-            overflow: visible !important;
+            width: 100% !important;
+            height: 100% !important;
             background: transparent !important;
           }
 
@@ -4945,8 +5071,8 @@ export function LayoutTemplateEditor({
           template keeps both compiled HTML and source MJML.
         </div>
       ) : null}
-      <div className="min-h-[720px] overflow-hidden rounded-md border border-slate-300 bg-slate-50">
-        <div ref={containerRef} />
+      <div className="h-[720px] overflow-hidden rounded-md border border-slate-300 bg-slate-50">
+        <div ref={containerRef} className="h-full w-full" />
       </div>
       <style jsx global>{`
         .mjml-editor-theme .gjs-one-bg {
