@@ -621,6 +621,36 @@ export class ContactsService {
       };
     }
 
+    // Ensure all categories in bulk first to avoid thousands of individual database updates
+    const categoriesToEnsure = new Set<string>();
+    if (dto.category) {
+      categoriesToEnsure.add(dto.category);
+    }
+    for (const row of parsed.rows) {
+      if (row.category) {
+        categoriesToEnsure.add(row.category);
+      }
+    }
+    if (categoriesToEnsure.size > 0) {
+      await this.workspacesService.ensureCategories(workspaceId, Array.from(categoriesToEnsure));
+    }
+
+    // Pre-fetch existing emails in bulk to avoid individual findOne queries inside loop
+    const emailsInCsv = parsed.rows
+      .map((row) => this.normalizeEmail(row.email))
+      .filter((email): email is string => !!email);
+
+    const existingContacts = await this.contactModel
+      .find({
+        workspaceId: this.toObjectId(workspaceId),
+        emailNormalized: { $in: emailsInCsv },
+      })
+      .select('emailNormalized')
+      .lean()
+      .exec();
+
+    const existingEmailsSet = new Set(existingContacts.map((c) => c.emailNormalized.toLowerCase()));
+
     let created = 0;
     let skipped = 0;
     let invalid = 0;
@@ -636,7 +666,7 @@ export class ContactsService {
 
     for (const row of parsed.rows) {
       try {
-        const result = await this.createFromImportRow(workspaceId, row, dto.category);
+        const result = await this.createFromImportRow(workspaceId, row, dto.category, existingEmailsSet);
         if (result === 'created') {
           created += 1;
         } else {
@@ -696,6 +726,7 @@ export class ContactsService {
     workspaceId: string,
     row: ParsedContactCsvRow,
     overrideCategory?: string,
+    existingEmailsSet?: Set<string>,
   ): Promise<'created' | 'skipped'> {
     const payload = this.buildContactPayload({
       firstName: row.firstName,
@@ -715,17 +746,24 @@ export class ContactsService {
     });
 
     if (payload.emailNormalized) {
-      const existing = await this.contactModel
-        .findOne({
-          workspaceId: this.toObjectId(workspaceId),
-          emailNormalized: payload.emailNormalized,
-        })
-        .select('_id')
-        .lean()
-        .exec();
+      const emailLower = payload.emailNormalized.toLowerCase();
+      if (existingEmailsSet) {
+        if (existingEmailsSet.has(emailLower)) {
+          return 'skipped';
+        }
+      } else {
+        const existing = await this.contactModel
+          .findOne({
+            workspaceId: this.toObjectId(workspaceId),
+            emailNormalized: payload.emailNormalized,
+          })
+          .select('_id')
+          .lean()
+          .exec();
 
-      if (existing) {
-        return 'skipped';
+        if (existing) {
+          return 'skipped';
+        }
       }
     }
 
@@ -737,8 +775,8 @@ export class ContactsService {
       true,
     );
 
-    if (payload.category) {
-      await this.workspacesService.ensureCategories(workspaceId, [payload.category]);
+    if (payload.emailNormalized && existingEmailsSet) {
+      existingEmailsSet.add(payload.emailNormalized.toLowerCase());
     }
 
     return 'created';

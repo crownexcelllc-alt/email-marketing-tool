@@ -332,6 +332,7 @@ export async function importContacts(file: File, category?: string): Promise<Con
     headers: {
       'Content-Type': 'multipart/form-data',
     },
+    timeout: 300_000, // 5 minutes timeout for bulk contact imports
   });
 
   const record = getRecord(payload);
@@ -469,6 +470,7 @@ export async function checkContactsDuplicates(emails: string[]): Promise<string[
     method: 'POST',
     url: '/contacts/check-duplicates',
     data: { emails },
+    timeout: 60_000, // 1 minute timeout for bulk duplicate checking
   });
 
   return Array.isArray(payload) ? (payload as string[]) : [];
