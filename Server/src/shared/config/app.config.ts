@@ -44,6 +44,7 @@ export const redisConfig = registerAs('redis', () => ({
   retryDelayMs: Number(process.env.REDIS_RETRY_DELAY_MS ?? 1000),
   retryMaxAttempts: Number(process.env.REDIS_RETRY_MAX_ATTEMPTS ?? 5),
   family: Number(process.env.REDIS_FAMILY ?? 0),
+  keepAlive: Number(process.env.REDIS_KEEP_ALIVE_MS ?? 30000),
   keyPrefix: process.env.BULLMQ_PREFIX ?? 'marketing-platform',
   skipVersionCheck: (process.env.BULLMQ_SKIP_VERSION_CHECK ?? 'false') === 'true',
   skipWaitingForReady: (process.env.BULLMQ_SKIP_WAITING_FOR_READY ?? 'true') === 'true',

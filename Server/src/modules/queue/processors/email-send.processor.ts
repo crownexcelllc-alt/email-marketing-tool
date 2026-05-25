@@ -75,7 +75,7 @@ export class EmailSendProcessor extends WorkerHost {
           },
           {
             delay,
-            jobId: `campaign-limit-resume:${outcome.campaignId}`,
+            jobId: `campaign-limit-resume-${outcome.campaignId}`,
           },
         );
 

@@ -350,7 +350,7 @@ export class CampaignSchedulerProcessor extends WorkerHost {
         },
         {
           delay: Math.max(0, resumeAt.getTime() - now.getTime()),
-          jobId: `campaign-limit-resume:${campaign.id}`,
+          jobId: `campaign-limit-resume-${campaign.id}`,
         },
       );
       return null;

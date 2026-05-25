@@ -22,6 +22,8 @@ export class QueueRedisConnectionProvider implements OnApplicationShutdown {
     const retryMaxAttempts =
       this.configService.get<number>('redis.retryMaxAttempts', { infer: true }) ?? 5;
     const family = this.configService.get<number>('redis.family', { infer: true }) ?? 0;
+    const keepAlive =
+      this.configService.get<number>('redis.keepAlive', { infer: true }) ?? 30000;
 
     this.client = new Redis({
       host: this.configService.get<string>('redis.host', { infer: true }),
@@ -33,19 +35,26 @@ export class QueueRedisConnectionProvider implements OnApplicationShutdown {
       lazyConnect: true,
       connectTimeout: connectTimeoutMs,
       maxRetriesPerRequest: null,
-      retryStrategy: (attempt): number | null => {
+      keepAlive,
+      retryStrategy: (attempt): number => {
+        const delay = Math.min(attempt * retryDelayMs, 15000);
         if (attempt > retryMaxAttempts) {
           if (!this.hasLoggedRetryLimitError) {
             this.hasLoggedRetryLimitError = true;
-            this.logger.error(
-              `Redis reconnect retry limit reached (${retryMaxAttempts}). Stopping retries for this client.`,
+            this.logger.warn(
+              `Redis reconnect attempts exceeded limit of ${retryMaxAttempts}. Will continue retrying in background with backoff...`,
             );
           }
-          return null;
         }
-
-        return retryDelayMs;
+        return delay;
       },
+    });
+
+    this.client.on('connect', () => {
+      this.hasLoggedRetryLimitError = false;
+      this.hasLoggedDnsResolutionError = false;
+      this.hasLoggedClientLimitError = false;
+      this.logger.log('Successfully connected to Redis.');
     });
 
     this.client.on('error', (error: Error & { code?: string }) => {
