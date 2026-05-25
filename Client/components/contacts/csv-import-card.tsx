@@ -50,44 +50,41 @@ export function CsvImportCard({ onPreview }: CsvImportCardProps) {
           telephone, mobile, additional number, designation, department, category, city, and source.
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".csv,text/csv"
-          className="block w-full text-sm text-zinc-400 file:mr-4 file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-2 file:text-sm file:font-medium file:text-zinc-100 hover:file:bg-zinc-700"
-          onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-        />
-        <Button type="button" variant="outline" className="sm:w-auto" asChild>
+      <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-3 items-start w-full sm:max-w-md">
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="block w-full text-sm text-zinc-400 file:mr-4 file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-2 file:text-sm file:font-medium file:text-zinc-100 hover:file:bg-zinc-700"
+            onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+          />
+          <Button
+            type="button"
+            className="w-full sm:w-auto gap-2 bg-black hover:bg-black text-white hover:text-white"
+            disabled={!selectedFile || isParsing}
+            onClick={() => void handlePreviewClick()}
+          >
+            {isParsing ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Analysing…
+              </>
+            ) : (
+              <>
+                <Eye className="h-4 w-4" />
+                Preview Import
+              </>
+            )}
+          </Button>
+        </div>
+        <Button type="button" variant="outline" className="w-full sm:w-auto" asChild>
           <a href="/contacts-import-template.csv" download>
             <Download className="mr-2 h-4 w-4" />
             Download Template
           </a>
         </Button>
-        <Button
-          type="button"
-          className="sm:w-auto gap-2 bg-black hover:bg-black text-white hover:text-white"
-          disabled={!selectedFile || isParsing}
-          onClick={() => void handlePreviewClick()}
-        >
-          {isParsing ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Analysing…
-            </>
-          ) : (
-            <>
-              <Eye className="h-4 w-4" />
-              Preview Import
-            </>
-          )}
-        </Button>
       </CardContent>
-      {selectedFile && (
-        <p className="px-6 pb-4 text-xs text-zinc-500">
-          Selected file: <span className="text-zinc-300">{selectedFile.name}</span>
-        </p>
-      )}
     </Card>
   );
 }
