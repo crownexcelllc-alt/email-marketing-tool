@@ -217,6 +217,9 @@ function CampaignCard({
   const percent = total > 0 ? Math.round((processed / total) * 100) : 0;
   const showHistory = campaign.status === 'completed' && remaining === 0;
 
+  const limitFailedTime = campaign.limitFailedAt || campaign.completedAt || campaign.updatedAt || null;
+  const limitResumeTime = campaign.limitResumeAt || (limitFailedTime ? new Date(new Date(limitFailedTime).getTime() + 24 * 60 * 60 * 1000).toISOString() : null);
+
   // Progress Bar Helper
   const renderProgress = () => {
     if (campaign.status === 'draft') {
@@ -525,6 +528,20 @@ function CampaignCard({
                 <p className="text-zinc-500 leading-normal">
                   Google accounts have a daily sending limit of 2,000 emails/day. Remaining emails are kept pending to avoid account suspension and can be resumed once the limit resets.
                 </p>
+                <div className="mt-3 w-full border-t border-amber-200/50 pt-2.5 space-y-1.5 text-[11px]">
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-zinc-500 font-medium">Start Time:</span>
+                    <span className="font-semibold text-zinc-700">{formatDate(campaign.startedAt)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-zinc-500 font-medium">Limit Reached:</span>
+                    <span className="font-semibold text-zinc-700">{formatDate(limitFailedTime)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-zinc-500 font-medium">Resume Time:</span>
+                    <span className="font-semibold text-amber-700">{formatDate(limitResumeTime)}</span>
+                  </div>
+                </div>
               </div>
             )}
           </div>
