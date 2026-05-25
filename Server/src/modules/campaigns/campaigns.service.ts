@@ -246,7 +246,7 @@ export class CampaignsService {
     const limit = query.limit ?? 10;
     const workspaceId = campaign.workspaceId;
 
-    const [openedContactIds, clickedContactIds] = await Promise.all([
+    const [openedContactIds, clickedContactIds, totalOpens, totalClicks] = await Promise.all([
       this.contactActivityModel
         .distinct('contactId', {
           campaignId: campaign._id,
@@ -259,10 +259,19 @@ export class CampaignsService {
           eventType: TrackingEventType.CLICK,
         })
         .exec(),
+      this.contactActivityModel
+        .countDocuments({
+          campaignId: campaign._id,
+          eventType: TrackingEventType.OPEN,
+        })
+        .exec(),
+      this.contactActivityModel
+        .countDocuments({
+          campaignId: campaign._id,
+          eventType: TrackingEventType.CLICK,
+        })
+        .exec(),
     ]);
-
-    const openedSet = new Set(openedContactIds.map((id) => id.toString()));
-    const clickedSet = new Set(clickedContactIds.map((id) => id.toString()));
 
     const [sentCount, pendingCount, notOpenedCount] = await Promise.all([
       this.campaignRecipientModel
@@ -303,8 +312,8 @@ export class CampaignsService {
     const summary = {
       sent: sentCount,
       pending: pendingCount,
-      opened: openedSet.size,
-      clicked: clickedSet.size,
+      opened: totalOpens,
+      clicked: totalClicks,
       notOpened: notOpenedCount,
     };
 

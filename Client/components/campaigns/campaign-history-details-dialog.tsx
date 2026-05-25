@@ -437,7 +437,7 @@ export function CampaignHistoryDetailsPanel({
         )}
 
         {/* Metric Cards Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           <button
             onClick={() => handleFilterChange('all')}
             className={`flex flex-col items-center justify-between p-3 rounded-xl border transition-all text-center ${
@@ -464,7 +464,7 @@ export function CampaignHistoryDetailsPanel({
             <CheckCircle2 className={`h-5 w-5 mb-2 ${filter === 'sent' ? 'text-blue-400' : 'text-zinc-500'}`} />
             <span className="text-xs font-medium uppercase tracking-wider">Sent</span>
             <span className={`text-2xl font-extrabold mt-1 ${filter === 'sent' ? 'text-blue-400' : 'text-zinc-100'}`}>
-              {summary.sent}
+              {campaign?.stats?.sentRecipients ?? summary.sent}
             </span>
           </button>
 
@@ -494,7 +494,7 @@ export function CampaignHistoryDetailsPanel({
             <Eye className={`h-5 w-5 mb-2 ${filter === 'opened' ? 'text-blue-400' : 'text-zinc-500'}`} />
             <span className="text-xs font-medium uppercase tracking-wider">Opens</span>
             <span className={`text-2xl font-extrabold mt-1 ${filter === 'opened' ? 'text-blue-400' : 'text-zinc-100'}`}>
-              {summary.opened}
+              {campaign?.stats?.openCount ?? summary.opened}
             </span>
           </button>
 
@@ -509,22 +509,7 @@ export function CampaignHistoryDetailsPanel({
             <MousePointerClick className={`h-5 w-5 mb-2 ${filter === 'clicked' ? 'text-blue-400' : 'text-zinc-500'}`} />
             <span className="text-xs font-medium uppercase tracking-wider">Clicks</span>
             <span className={`text-2xl font-extrabold mt-1 ${filter === 'clicked' ? 'text-blue-400' : 'text-zinc-100'}`}>
-              {summary.clicked}
-            </span>
-          </button>
-
-          <button
-            onClick={() => handleFilterChange('notOpened')}
-            className={`flex flex-col items-center justify-between p-3 rounded-xl border transition-all text-center ${
-              filter === 'notOpened'
-                ? 'border-blue-500 bg-zinc-100 text-zinc-100 shadow-lg shadow-blue-950/10'
-                : 'border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <EyeOff className={`h-5 w-5 mb-2 ${filter === 'notOpened' ? 'text-blue-400' : 'text-zinc-500'}`} />
-            <span className="text-xs font-medium uppercase tracking-wider">Not Opened</span>
-            <span className={`text-2xl font-extrabold mt-1 ${filter === 'notOpened' ? 'text-blue-400' : 'text-zinc-100'}`}>
-              {summary.notOpened}
+              {campaign?.stats?.clickCount ?? summary.clicked}
             </span>
           </button>
         </div>
