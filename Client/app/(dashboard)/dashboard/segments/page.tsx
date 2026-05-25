@@ -211,9 +211,14 @@ function CampaignCard({
   const processed = sent + permanentFailed + skipped;
   const remaining = stats.queuedRecipients ?? Math.max(0, total - (sent + failed + skipped));
 
+  const isLimitReached =
+    campaign.stopReason === 'daily sending limit reached' ||
+    (campaign.status === 'paused' && Boolean(campaign.limitFailedAt));
+
   const isCompleted = campaign.status === 'completed' && remaining === 0 && permanentFailed === 0;
   const completedWithFailures = campaign.status === 'completed' && permanentFailed > 0 && remaining === 0;
-  const isPartiallySent = campaign.status === 'completed' && (limitFailed > 0 || remaining > 0);
+  const isPartiallySent =
+    (campaign.status === 'completed' && (limitFailed > 0 || remaining > 0)) || isLimitReached;
   const percent = total > 0 ? Math.round((processed / total) * 100) : 0;
   const showHistory = campaign.status === 'completed' && remaining === 0;
 
@@ -227,9 +232,10 @@ function CampaignCard({
     }
 
     const showStop = campaign.status === 'running' || campaign.status === 'scheduled';
-    const showResume = campaign.status === 'paused';
+    const showResume = campaign.status === 'paused' && !isLimitReached;
     const showStartAgain = campaign.status === 'cancelled';
-    const showResendRemaining = isPartiallySent;
+    const showResendRemaining = isPartiallySent && !isLimitReached;
+    const showAutoResume = isLimitReached;
 
     let progressTitle = 'Campaign Progress';
     let titleClass = 'text-zinc-700';
@@ -277,7 +283,7 @@ function CampaignCard({
           </div>
         </div>
 
-        {(showStop || showResume || showStartAgain || showResendRemaining) && (
+        {(showStop || showResume || showStartAgain || showResendRemaining || showAutoResume) && (
           <div className="shrink-0 flex items-center justify-end sm:border-l sm:border-zinc-200 sm:pl-4 gap-2">
             {showStop && (
               <Button
@@ -338,6 +344,16 @@ function CampaignCard({
                   <RotateCw className="h-3.5 w-3.5" />
                 )}
                 Resend Remaining
+              </Button>
+            )}
+            {showAutoResume && (
+              <Button
+                size="sm"
+                disabled
+                className="gap-1.5 bg-amber-50 text-amber-700 border border-amber-200 font-semibold shadow-sm cursor-not-allowed opacity-90"
+              >
+                <Clock className="h-3.5 w-3.5" />
+                Auto-Resume
               </Button>
             )}
           </div>
@@ -526,7 +542,7 @@ function CampaignCard({
                   <span>Google Workspace Limit</span>
                 </div>
                 <p className="text-zinc-500 leading-normal">
-                  Google accounts have a daily sending limit of 2,000 emails/day. Remaining emails are kept pending to avoid account suspension and can be resumed once the limit resets.
+                  The daily sending limit for this sender account has been fully used. Remaining emails will be paused and the campaign will automatically resume once the limit resets.
                 </p>
                 <div className="mt-3 w-full border-t border-amber-200/50 pt-2.5 space-y-1.5 text-[11px]">
                   <div className="flex items-center justify-between gap-4">

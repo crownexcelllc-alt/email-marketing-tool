@@ -275,13 +275,18 @@ export function CampaignHistoryDetailsPanel({
         {showLimitAlert && (
           <div className="mb-5 rounded-xl bg-amber-500/10 border border-amber-500/20 p-4 text-sm text-amber-200/90 flex items-start gap-3 shadow-md animate-fade-in">
             <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
-            <div className="space-y-1">
+            <div className="space-y-1 flex-1">
               <div className="font-bold text-amber-300">Google Workspace Sending Limit Reached</div>
-              <div>
-                A single Google Workspace account can only send around 2,000 emails per day. 
-                There are <span className="font-semibold text-white">{effectivePending}</span> remaining emails in queue. 
-                They are displayed under the <strong className="text-amber-300">Remaining</strong> section below. 
-                Sending will resume automatically after the daily limit resets.
+              <div className="space-y-1.5 text-zinc-300">
+                <p>
+                  The daily sending limit for this sender account has been fully used.
+                  The remaining <span className="font-semibold text-white">{effectivePending}</span> emails will be paused and the campaign will automatically resume once the limit resets.
+                </p>
+                {campaign?.limitResumeAt && (
+                  <p className="text-xs text-amber-400 font-semibold mt-1">
+                    Scheduled to resume on: <span className="underline">{formatDateTime(campaign.limitResumeAt)}</span>
+                  </p>
+                )}
               </div>
             </div>
           </div>
