@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  AlertTriangle,
   BarChart2,
   CheckCircle2,
   Circle,
@@ -402,9 +403,7 @@ function CampaignCard({
                 <Pencil className="h-3.5 w-3.5" />
                 Edit
               </Button>
-            ) : campaign.status === 'running' || campaign.status === 'scheduled' ? (
-              null
-            ) : (
+            ) : showHistory ? (
               <Button
                 size="sm"
                 variant="outline"
@@ -415,7 +414,7 @@ function CampaignCard({
                 <Copy className="h-3.5 w-3.5" />
                 {isDuplicating ? 'Duplicating...' : 'Duplicate'}
               </Button>
-            )}
+            ) : null}
           </div>
         </div>
       </CardHeader>
@@ -488,32 +487,46 @@ function CampaignCard({
           </div>
 
           {/* Stats */}
-          <div className="flex flex-wrap gap-2 lg:flex-nowrap">
-            <StatPill
-              icon={<Users className="h-3.5 w-3.5" />}
-              label="Recipients"
-              value={total}
-            />
-            <StatPill
-              icon={<Send className="h-3.5 w-3.5" />}
-              label="Sent"
-              value={sent}
-            />
-            <StatPill
-              icon={<Clock className="h-3.5 w-3.5" />}
-              label="Remaining"
-              value={remaining}
-            />
-            <StatPill
-              icon={<BarChart2 className="h-3.5 w-3.5" />}
-              label="Opens"
-              value={stats.openCount ?? 0}
-            />
-            <StatPill
-              icon={<MousePointerClick className="h-3.5 w-3.5" />}
-              label="Clicks"
-              value={stats.clickCount ?? 0}
-            />
+          <div className="flex flex-col items-start lg:items-end gap-3 shrink-0">
+            <div className="flex flex-wrap gap-2 lg:flex-nowrap">
+              <StatPill
+                icon={<Users className="h-3.5 w-3.5" />}
+                label="Recipients"
+                value={total}
+              />
+              <StatPill
+                icon={<Send className="h-3.5 w-3.5" />}
+                label="Sent"
+                value={sent}
+              />
+              <StatPill
+                icon={<Clock className="h-3.5 w-3.5" />}
+                label="Remaining"
+                value={remaining}
+              />
+              <StatPill
+                icon={<BarChart2 className="h-3.5 w-3.5" />}
+                label="Opens"
+                value={stats.openCount ?? 0}
+              />
+              <StatPill
+                icon={<MousePointerClick className="h-3.5 w-3.5" />}
+                label="Clicks"
+                value={stats.clickCount ?? 0}
+              />
+            </div>
+
+            {isPartiallySent && (
+              <div className="rounded-lg border border-amber-100 bg-amber-50/50 p-3.5 text-xs text-amber-800 max-w-[340px] space-y-1 text-left lg:text-right flex flex-col items-start lg:items-end">
+                <div className="flex items-center gap-1.5 font-semibold text-amber-900">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                  <span>Google Workspace Limit</span>
+                </div>
+                <p className="text-zinc-500 leading-normal">
+                  Google accounts have a daily sending limit of 2,000 emails/day. Remaining emails are kept pending to avoid account suspension and can be resumed once the limit resets.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </CardContent>
