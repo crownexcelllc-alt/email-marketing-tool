@@ -214,7 +214,7 @@ function CampaignCard({
   const completedWithFailures = campaign.status === 'completed' && permanentFailed > 0 && remaining === 0;
   const isPartiallySent = campaign.status === 'completed' && (limitFailed > 0 || remaining > 0);
   const percent = total > 0 ? Math.round((processed / total) * 100) : 0;
-  const showHistory = campaign.status !== 'draft';
+  const showHistory = campaign.status === 'completed' && remaining === 0;
 
   // Progress Bar Helper
   const renderProgress = () => {
