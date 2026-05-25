@@ -11,12 +11,22 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { HttpClientError } from '@/lib/api/errors';
 import { createTemplate, getMjmlProviderTemplateById } from '@/lib/api/templates';
 import {
   clearLibraryTemplateDraft,
   saveLibraryTemplateDraft,
+  readLibraryTemplateDraft,
 } from '@/lib/templates/library-template-draft';
+import type { TemplateDraft } from '@/lib/templates/draft-store';
 import type { ProviderTemplateDetail, TemplateCategory } from '@/lib/types/template';
 import { templateFormSchema, type TemplateFormValues } from '@/lib/validators/template';
 
@@ -115,6 +125,14 @@ export default function UseTemplatePage() {
   const [templateName, setTemplateName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const autoSaveTimerRef = useRef<number | null>(null);
+  const backupSaveTimerRef = useRef<number | null>(null);
+
+  // Draft restore state
+  const [isRestoreOpen, setIsRestoreOpen] = useState(false);
+  const [pendingDraft, setPendingDraft] = useState<TemplateDraft | null>(null);
+
+  // Autosave status state
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   const form = useForm<TemplateFormValues>({
     resolver: zodResolver(templateFormSchema) as never,
@@ -136,19 +154,22 @@ export default function UseTemplatePage() {
         const detail = await getMjmlProviderTemplateById(templateId);
         if (!cancelled) {
           setProviderTemplate(detail);
-          form.reset(getDefaultValues(detail));
-          setHasUserEdited(false);
-          setIsDraftSaved(false);
-          // Always start from the original library template when entering edit mode.
-          clearLibraryTemplateDraft(templateId);
+          const draft = readLibraryTemplateDraft(templateId);
+          if (draft) {
+            setPendingDraft(draft);
+            setIsRestoreOpen(true);
+            // Keep isLoading = true until user chooses an option
+          } else {
+            form.reset(getDefaultValues(detail));
+            setHasUserEdited(false);
+            setIsDraftSaved(false);
+            setIsLoading(false);
+          }
         }
       } catch (err: unknown) {
         if (!cancelled) {
           setProviderTemplate(null);
           setError(getErrorMessage(err));
-        }
-      } finally {
-        if (!cancelled) {
           setIsLoading(false);
         }
       }
@@ -160,6 +181,36 @@ export default function UseTemplatePage() {
       cancelled = true;
     };
   }, [form, templateId]);
+
+  const handleContinueDraft = () => {
+    if (pendingDraft) {
+      form.reset(pendingDraft.values);
+      setHasUserEdited(true);
+      setIsDraftSaved(true);
+      if (pendingDraft.stepProgress) {
+        if (pendingDraft.stepProgress.isNameStepOpen) {
+          setIsNameStepOpen(true);
+        }
+      }
+      setSaveStatus('saved');
+    }
+    setIsRestoreOpen(false);
+    setPendingDraft(null);
+    setIsLoading(false);
+  };
+
+  const handleStartFresh = () => {
+    clearLibraryTemplateDraft(templateId);
+    if (providerTemplate) {
+      form.reset(getDefaultValues(providerTemplate));
+    }
+    setHasUserEdited(false);
+    setIsDraftSaved(false);
+    setSaveStatus('idle');
+    setIsRestoreOpen(false);
+    setPendingDraft(null);
+    setIsLoading(false);
+  };
 
   useEffect(() => {
     const previousBodyOverflow = document.body.style.overflow;
@@ -209,10 +260,13 @@ export default function UseTemplatePage() {
     }
   }, [hasUnsavedChanges]);
 
+  // Debounced Autosave (1s after typing stops)
   useEffect(() => {
     if (isLoading || !providerTemplate || !hasUnsavedChanges) {
       return;
     }
+
+    setSaveStatus('saving');
 
     if (autoSaveTimerRef.current !== null) {
       window.clearTimeout(autoSaveTimerRef.current);
@@ -221,9 +275,10 @@ export default function UseTemplatePage() {
     autoSaveTimerRef.current = window.setTimeout(() => {
       try {
         const values = form.getValues();
-        saveLibraryTemplateDraft(templateId, values);
+        saveLibraryTemplateDraft(templateId, values, { isNameStepOpen });
         form.reset(values);
         setIsDraftSaved(true);
+        setSaveStatus('saved');
       } catch {
         setError('Failed to auto-save draft changes. Please try again.');
       } finally {
@@ -242,10 +297,50 @@ export default function UseTemplatePage() {
     isLoading,
     providerTemplate,
     templateId,
+    isNameStepOpen,
     watchedBody,
     watchedDesignJson,
     watchedMjmlBody,
     watchedName,
+  ]);
+
+  // Periodic Backup Autosave (every 8s if there are unsaved changes)
+  useEffect(() => {
+    if (isLoading || !providerTemplate || !hasUnsavedChanges) {
+      if (backupSaveTimerRef.current !== null) {
+        window.clearInterval(backupSaveTimerRef.current);
+        backupSaveTimerRef.current = null;
+      }
+      return;
+    }
+
+    if (backupSaveTimerRef.current === null) {
+      backupSaveTimerRef.current = window.setInterval(() => {
+        try {
+          const values = form.getValues();
+          saveLibraryTemplateDraft(templateId, values, { isNameStepOpen });
+          form.reset(values);
+          setIsDraftSaved(true);
+          setSaveStatus('saved');
+        } catch {
+          setError('Failed to auto-save draft changes. Please try again.');
+        }
+      }, 8000);
+    }
+
+    return () => {
+      if (backupSaveTimerRef.current !== null) {
+        window.clearInterval(backupSaveTimerRef.current);
+        backupSaveTimerRef.current = null;
+      }
+    };
+  }, [
+    form,
+    hasUnsavedChanges,
+    isLoading,
+    providerTemplate,
+    templateId,
+    isNameStepOpen,
   ]);
 
   const handleSubmit = form.handleSubmit(async (values) => {
@@ -361,6 +456,26 @@ export default function UseTemplatePage() {
     }
   };
 
+  const renderSaveStatus = (theme: 'dark' | 'light') => {
+    if (saveStatus === 'idle') return null;
+    const isDark = theme === 'dark';
+    return (
+      <div className="flex items-center gap-1.5 text-[11px] font-medium mr-2">
+        {saveStatus === 'saving' ? (
+          <>
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span className={isDark ? 'text-cyan-200/80' : 'text-zinc-500'}>Saving...</span>
+          </>
+        ) : (
+          <>
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            <span className={isDark ? 'text-cyan-200/80' : 'text-zinc-500'}>Draft saved</span>
+          </>
+        )}
+      </div>
+    );
+  };
+
   return (
     <section className="relative h-full w-full overflow-hidden">
 
@@ -376,7 +491,7 @@ export default function UseTemplatePage() {
         </Card>
       ) : null}
 
-      {providerTemplate ? (
+      {!isLoading && providerTemplate ? (
         <form
           id="template-editor-form"
           className="flex h-full min-h-0 w-full flex-col"
@@ -405,7 +520,8 @@ export default function UseTemplatePage() {
                   mjmlValue={form.getValues('mjmlBody') ?? null}
                   onMjmlChange={handleMjmlChange}
                   headerActions={
-                    <>
+                    <div className="flex items-center gap-2">
+                      {renderSaveStatus('dark')}
                       <Button
                         type="button"
                         variant="outline"
@@ -434,7 +550,7 @@ export default function UseTemplatePage() {
                           Next
                         </Button>
                       ) : null}
-                    </>
+                    </div>
                   }
                   previewHeaderActions={
                     canGoNext ? (
@@ -528,6 +644,33 @@ export default function UseTemplatePage() {
           ) : null}
         </form>
       ) : null}
+      <Dialog open={isRestoreOpen} onOpenChange={setIsRestoreOpen}>
+        <DialogContent className="w-[96vw] sm:max-w-md bg-zinc-950 text-zinc-100 border-zinc-800" showClose={false}>
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Unsaved Draft Found</DialogTitle>
+            <DialogDescription className="text-zinc-400 mt-2">
+              You have an unsaved draft for this template. What do you want to do?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4 flex flex-col sm:flex-row justify-end gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleStartFresh}
+              className="border-zinc-700 text-zinc-300 hover:bg-zinc-900 hover:text-white w-full sm:w-auto"
+            >
+              Start fresh
+            </Button>
+            <Button
+              type="button"
+              onClick={handleContinueDraft}
+              className="bg-[#0b6886] hover:bg-[#0c7ea3] text-white w-full sm:w-auto"
+            >
+              Continue draft
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

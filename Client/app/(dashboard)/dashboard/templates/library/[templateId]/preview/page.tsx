@@ -112,8 +112,8 @@ export default function TemplatePreviewPage() {
       return;
     }
 
-    setDraftName(draft.name);
-    setDraftHtml(draft.body);
+    setDraftName(draft.values.name);
+    setDraftHtml(draft.values.body);
   }, [isChangesPreview, templateId]);
 
   const handleResizeIframe = () => {
@@ -143,8 +143,8 @@ export default function TemplatePreviewPage() {
     setIsFinalSaving(true);
     try {
       const payload = {
-        ...draft,
-        subject: draft.subject === (template?.name ?? '') ? draft.name : draft.subject,
+        ...draft.values,
+        subject: draft.values.subject === (template?.name ?? '') ? draft.values.name : draft.values.subject,
       };
       await createTemplate(payload);
       clearLibraryTemplateDraft(templateId);

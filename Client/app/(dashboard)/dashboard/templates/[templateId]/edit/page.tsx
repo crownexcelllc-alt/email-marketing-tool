@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowLeft } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { toast } from 'sonner';
 import { EmailTemplateHtmlEditor } from '@/components/templates/email-template-html-editor';
@@ -23,6 +23,12 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { HttpClientError } from '@/lib/api/errors';
 import { createTemplate, getTemplateById, updateTemplate } from '@/lib/api/templates';
+import {
+  saveTemplateDraft,
+  readTemplateDraft,
+  clearTemplateDraft,
+  type TemplateDraft,
+} from '@/lib/templates/draft-store';
 import { cn } from '@/lib/utils';
 import type {
   MarketingTemplate,
@@ -81,12 +87,25 @@ export default function EditTemplatePage() {
   const [pendingSaveValues, setPendingSaveValues] = useState<TemplateFormValues | null>(null);
   const [isSaveOptionsOpen, setIsSaveOptionsOpen] = useState(false);
 
+  const autoSaveTimerRef = useRef<number | null>(null);
+  const backupSaveTimerRef = useRef<number | null>(null);
+
+  // Draft restore state
+  const [isRestoreOpen, setIsRestoreOpen] = useState(false);
+  const [pendingDraft, setPendingDraft] = useState<TemplateDraft | null>(null);
+
+  // Autosave status state
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+
   const handleBackClick = () => {
     setIsLeaveConfirmOpen(true);
   };
 
   const handleConfirmLeave = () => {
     setIsLeaveConfirmOpen(false);
+    if (template) {
+      clearTemplateDraft(`template-edit-draft:${template.id}`);
+    }
     router.push(
       template
         ? `/dashboard/templates/${encodeURIComponent(template.id)}`
@@ -123,15 +142,20 @@ export default function EditTemplatePage() {
         const item = await getTemplateById(templateId);
         if (!cancelled) {
           setTemplate(item);
-          form.reset(getDefaultValues(item, item.type));
+          const draft = readTemplateDraft(`template-edit-draft:${item.id}`);
+          if (draft) {
+            setPendingDraft(draft);
+            setIsRestoreOpen(true);
+            // Keep isLoading = true until the user chooses an option
+          } else {
+            form.reset(getDefaultValues(item, item.type));
+            setIsLoading(false);
+          }
         }
       } catch (error: unknown) {
         if (!cancelled) {
           setTemplate(null);
           setLoadError(getErrorMessage(error));
-        }
-      } finally {
-        if (!cancelled) {
           setIsLoading(false);
         }
       }
@@ -144,12 +168,104 @@ export default function EditTemplatePage() {
     };
   }, [form, templateId]);
 
+  const handleContinueDraft = () => {
+    if (pendingDraft) {
+      form.reset(pendingDraft.values);
+      setSaveStatus('saved');
+    }
+    setIsRestoreOpen(false);
+    setPendingDraft(null);
+    setIsLoading(false);
+  };
+
+  const handleStartFresh = () => {
+    if (template) {
+      clearTemplateDraft(`template-edit-draft:${template.id}`);
+      form.reset(getDefaultValues(template, template.type));
+      setSaveStatus('idle');
+    }
+    setIsRestoreOpen(false);
+    setPendingDraft(null);
+    setIsLoading(false);
+  };
+
   const watchedType = useWatch({ control: form.control, name: 'type' }) ?? 'email';
   const watchedEditorType = useWatch({ control: form.control, name: 'editorType' }) ?? 'html';
   const watchedLayoutPreset = useWatch({ control: form.control, name: 'layoutPreset' });
   const watchedDesignJson = useWatch({ control: form.control, name: 'designJson' });
   const watchedMjmlBody = useWatch({ control: form.control, name: 'mjmlBody' }) ?? null;
+  const watchedName = useWatch({ control: form.control, name: 'name' }) ?? '';
+  const watchedBody = useWatch({ control: form.control, name: 'body' }) ?? '';
+  const watchedSubject = useWatch({ control: form.control, name: 'subject' }) ?? '';
   const useFullPageEditor = !isLoading && !loadError && watchedType === 'email';
+  const hasUnsavedChanges = form.formState.isDirty;
+
+  // Debounced Autosave (1s after typing stops)
+  useEffect(() => {
+    if (!template || !hasUnsavedChanges) {
+      return;
+    }
+
+    setSaveStatus('saving');
+
+    if (autoSaveTimerRef.current !== null) {
+      window.clearTimeout(autoSaveTimerRef.current);
+    }
+
+    autoSaveTimerRef.current = window.setTimeout(() => {
+      const values = form.getValues();
+      saveTemplateDraft(`template-edit-draft:${template.id}`, values);
+      form.reset(values);
+      setSaveStatus('saved');
+      autoSaveTimerRef.current = null;
+    }, 1000);
+
+    return () => {
+      if (autoSaveTimerRef.current !== null) {
+        window.clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [
+    form,
+    template,
+    hasUnsavedChanges,
+    watchedBody,
+    watchedDesignJson,
+    watchedMjmlBody,
+    watchedName,
+    watchedSubject,
+  ]);
+
+  // Periodic Backup Autosave (every 8s if there are unsaved changes)
+  useEffect(() => {
+    if (!template || !hasUnsavedChanges) {
+      if (backupSaveTimerRef.current !== null) {
+        window.clearInterval(backupSaveTimerRef.current);
+        backupSaveTimerRef.current = null;
+      }
+      return;
+    }
+
+    if (backupSaveTimerRef.current === null) {
+      backupSaveTimerRef.current = window.setInterval(() => {
+        const values = form.getValues();
+        saveTemplateDraft(`template-edit-draft:${template.id}`, values);
+        form.reset(values);
+        setSaveStatus('saved');
+      }, 8000);
+    }
+
+    return () => {
+      if (backupSaveTimerRef.current !== null) {
+        window.clearInterval(backupSaveTimerRef.current);
+        backupSaveTimerRef.current = null;
+      }
+    };
+  }, [
+    form,
+    template,
+    hasUnsavedChanges,
+  ]);
 
   const handleSubmit = form.handleSubmit((values) => {
     if (!template) {
@@ -169,6 +285,7 @@ export default function EditTemplatePage() {
         subject: pendingSaveValues.subject === template.name ? pendingSaveValues.name : pendingSaveValues.subject,
       };
       await updateTemplate(template.id, payload);
+      clearTemplateDraft(`template-edit-draft:${template.id}`);
       form.reset(pendingSaveValues); // Clear dirty state
       toast.success('Template updated successfully.');
       router.push('/dashboard/templates?tab=personal');
@@ -192,6 +309,7 @@ export default function EditTemplatePage() {
         copiedFrom: template.copiedFrom ?? template.id,
       };
       const newTemplate = await createTemplate(payload);
+      clearTemplateDraft(`template-edit-draft:${template.id}`);
       form.reset(pendingSaveValues); // Clear dirty state
       toast.success(`Template copy "${newTemplate.name}" created successfully.`);
       router.push('/dashboard/templates?tab=personal');
@@ -201,6 +319,26 @@ export default function EditTemplatePage() {
       setIsSubmitting(false);
       setPendingSaveValues(null);
     }
+  };
+
+  const renderSaveStatus = (theme: 'dark' | 'light') => {
+    if (saveStatus === 'idle') return null;
+    const isDark = theme === 'dark';
+    return (
+      <div className="flex items-center gap-1.5 text-[11px] font-medium mr-2">
+        {saveStatus === 'saving' ? (
+          <>
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span className={isDark ? 'text-cyan-200/80' : 'text-zinc-500'}>Saving...</span>
+          </>
+        ) : (
+          <>
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            <span className={isDark ? 'text-cyan-200/80' : 'text-zinc-500'}>Draft saved</span>
+          </>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -255,6 +393,7 @@ export default function EditTemplatePage() {
                         }}
                         headerActions={(
                           <div className="flex items-center gap-3">
+                            {renderSaveStatus('dark')}
                             <div className="flex items-center gap-1.5">
                               <span className="text-[11px] font-medium text-white/70">Name:</span>
                               <input
@@ -314,6 +453,7 @@ export default function EditTemplatePage() {
                         }}
                         headerActions={(
                           <div className="flex items-center gap-3">
+                            {renderSaveStatus('light')}
                             <div className="flex items-center gap-1.5">
                               <span className="text-[11px] font-medium text-zinc-500">Name:</span>
                               <input
@@ -380,7 +520,8 @@ export default function EditTemplatePage() {
                 />
                 <FieldError message={form.formState.errors.body?.message} />
 
-                <div className="flex justify-end gap-2">
+                <div className="flex justify-end gap-2 items-center">
+                  {renderSaveStatus('light')}
                   <Button
                     type="button"
                     variant="outline"
@@ -463,6 +604,33 @@ export default function EditTemplatePage() {
               disabled={isSubmitting}
             >
               {isSubmitting ? 'Saving...' : 'Update Original Template'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isRestoreOpen} onOpenChange={setIsRestoreOpen}>
+        <DialogContent className="w-[96vw] sm:max-w-md bg-zinc-950 text-zinc-100 border-zinc-800" showClose={false}>
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Unsaved Draft Found</DialogTitle>
+            <DialogDescription className="text-zinc-400 mt-2">
+              You have an unsaved draft for this template. What do you want to do?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4 flex flex-col sm:flex-row justify-end gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleStartFresh}
+              className="border-zinc-700 text-zinc-300 hover:bg-zinc-900 hover:text-white w-full sm:w-auto"
+            >
+              Start fresh
+            </Button>
+            <Button
+              type="button"
+              onClick={handleContinueDraft}
+              className="bg-[#0b6886] hover:bg-[#0c7ea3] text-white w-full sm:w-auto"
+            >
+              Continue draft
             </Button>
           </DialogFooter>
         </DialogContent>
