@@ -1,6 +1,6 @@
 'use client';
 
-import { Download, Eye, Loader2 } from 'lucide-react';
+import { Download, Eye, Loader2, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -52,13 +52,33 @@ export function CsvImportCard({ onPreview }: CsvImportCardProps) {
       </CardHeader>
       <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col gap-3 items-start w-full sm:max-w-md">
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".csv,text/csv"
-            className="block w-full text-sm text-zinc-400 file:mr-4 file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-2 file:text-sm file:font-medium file:text-zinc-100 hover:file:bg-zinc-700"
-            onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-          />
+          <div className="flex items-center gap-2 w-full">
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="block w-full text-sm text-zinc-400 file:mr-4 file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-2 file:text-sm file:font-medium file:text-zinc-100 hover:file:bg-zinc-700"
+              onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+            />
+            {selectedFile && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={() => {
+                  setSelectedFile(null);
+                  if (inputRef.current) {
+                    inputRef.current.value = '';
+                  }
+                }}
+                title="Clear selected file"
+                aria-label="Clear selected file"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
           <Button
             type="button"
             className="w-full sm:w-auto gap-2 bg-black hover:bg-black text-white hover:text-white"
