@@ -855,11 +855,23 @@ export class EmailService {
       return;
     }
 
+    const [sent, failed, skipped] = await Promise.all([
+      this.campaignRecipientModel.countDocuments({
+        campaignId,
+        status: CampaignRecipientStatus.SENT,
+      }),
+      this.campaignRecipientModel.countDocuments({
+        campaignId,
+        status: CampaignRecipientStatus.FAILED,
+      }),
+      this.campaignRecipientModel.countDocuments({
+        campaignId,
+        status: CampaignRecipientStatus.SKIPPED,
+      }),
+    ]);
+
     const stats = campaign.stats || {};
     const total = stats.totalRecipients || campaign.contactIds.length || 0;
-    const sent = stats.sentRecipients ?? 0;
-    const failed = stats.failedRecipients ?? 0;
-    const skipped = stats.skippedRecipients ?? 0;
     const processed = sent + failed + skipped;
 
     if (processed >= total && total > 0) {
