@@ -1,6 +1,6 @@
 'use client';
 
-import { Columns3, Plus, Trash2 } from 'lucide-react';
+import { Columns3, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -57,7 +57,7 @@ import type { ContactFormValues } from '@/lib/validators/contact';
 
 const DEFAULT_PAGINATION: ContactsPagination = {
   page: 1,
-  limit: 10,
+  limit: 100000,
   total: 0,
   totalPages: 1,
 };
@@ -122,7 +122,7 @@ function getErrorMessage(error: unknown): string {
 
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [pagination, setPagination] = useState<ContactsPagination>(DEFAULT_PAGINATION);
+  const [, setPagination] = useState<ContactsPagination>(DEFAULT_PAGINATION);
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -134,6 +134,7 @@ export default function ContactsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isSelectingAll, setIsSelectingAll] = useState(false);
   const [bulkTargetCategory, setBulkTargetCategory] = useState('');
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
   const [isAllCategoriesModalOpen, setIsAllCategoriesModalOpen] = useState(false);
@@ -278,8 +279,8 @@ export default function ContactsPage() {
 
     try {
       const response = await getContacts({
-        page: pagination.page,
-        limit: pagination.limit,
+        page: 1,
+        limit: DEFAULT_PAGINATION.limit,
         search: filters.search.trim() || undefined,
         status: filters.status || undefined,
         category: filters.category || undefined,
@@ -293,7 +294,7 @@ export default function ContactsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [filters, pagination.limit, pagination.page]);
+  }, [filters]);
 
   useEffect(() => {
     void loadContacts();
@@ -435,6 +436,8 @@ export default function ContactsPage() {
 
     setSelectedIds((prev) => prev.filter((id) => id !== contactId));
   };
+
+
 
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) {
@@ -578,19 +581,7 @@ export default function ContactsPage() {
     }
   };
 
-  const goToPreviousPage = () => {
-    setPagination((prev) => ({
-      ...prev,
-      page: Math.max(1, prev.page - 1),
-    }));
-  };
 
-  const goToNextPage = () => {
-    setPagination((prev) => ({
-      ...prev,
-      page: Math.min(prev.totalPages || 1, prev.page + 1),
-    }));
-  };
 
   const categoryOptions = useMemo(() => {
     const options = [
@@ -668,9 +659,42 @@ export default function ContactsPage() {
           </div>
 
           <div className="flex flex-col gap-2 rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-zinc-400">
-              {selectedIds.length} selected
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-zinc-400">
+                {selectedIds.length} selected
+              </p>
+              {contacts.length > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-zinc-600 bg-white text-zinc-950 hover:bg-zinc-100 hover:text-zinc-900 h-8 text-xs font-medium"
+                  onClick={() => {
+                    setIsSelectingAll(true);
+                    setTimeout(() => {
+                      if (selectedIds.length === contacts.length) {
+                        setSelectedIds([]);
+                      } else {
+                        setSelectedIds(contacts.map((c) => c.id));
+                      }
+                      setIsSelectingAll(false);
+                    }, 350);
+                  }}
+                  disabled={isSelectingAll}
+                >
+                  {isSelectingAll ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                      Processing...
+                    </>
+                  ) : selectedIds.length === contacts.length ? (
+                    'Deselect All'
+                  ) : (
+                    'Select All'
+                  )}
+                </Button>
+              )}
+            </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <select
                 className="h-9 rounded-md border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100"
@@ -720,28 +744,8 @@ export default function ContactsPage() {
 
           <div className="flex flex-col gap-3 border-t border-zinc-800 pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-zinc-500">
-              Page {pagination.page} of {pagination.totalPages} | {pagination.total} total contacts
+              {contacts.length === 1 ? '1 contact' : `${contacts.length} total contacts`}
             </p>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="border-zinc-700 text-zinc-200 hover:bg-zinc-800"
-                onClick={goToPreviousPage}
-                disabled={pagination.page <= 1 || isLoading}
-              >
-                Previous
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="border-zinc-700 text-zinc-200 hover:bg-zinc-800"
-                onClick={goToNextPage}
-                disabled={pagination.page >= pagination.totalPages || isLoading}
-              >
-                Next
-              </Button>
-            </div>
           </div>
         </CardContent>
       </Card>
