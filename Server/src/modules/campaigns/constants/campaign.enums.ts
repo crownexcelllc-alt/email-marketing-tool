@@ -28,6 +28,11 @@ export enum CampaignRecipientStatus {
   CANCELLED = 'cancelled',
 }
 
+export const CAMPAIGN_STOP_REASON_MANUAL = 'manually stopped';
+export const CAMPAIGN_STOP_REASON_DAILY_LIMIT = 'daily sending limit reached';
+export const DAILY_LIMIT_FAILURE_PATTERN =
+  /daily sending limit|daily user sending limit exceeded/i;
+
 export const CAMPAIGN_CHANNEL_VALUES = Object.values(CampaignChannel);
 export const CAMPAIGN_STATUS_VALUES = Object.values(CampaignStatus);
 export const CAMPAIGN_DISTRIBUTION_STRATEGY_VALUES = Object.values(CampaignDistributionStrategy);

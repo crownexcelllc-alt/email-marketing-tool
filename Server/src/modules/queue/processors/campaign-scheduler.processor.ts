@@ -6,6 +6,7 @@ import { Model, Types } from 'mongoose';
 import { AppException } from '../../../common/exceptions/app.exception';
 import { WorkspaceSettings } from '../../settings/schemas/workspace-settings.schema';
 import {
+  CAMPAIGN_STOP_REASON_DAILY_LIMIT,
   CampaignDistributionStrategy,
   CampaignRecipientStatus,
   CampaignStatus,
@@ -17,7 +18,7 @@ import {
   normalizeSenderCapacities,
 } from '../../campaigns/campaign-distribution.utils';
 import { CampaignRecipient } from '../../campaigns/schemas/campaign-recipient.schema';
-import { Campaign } from '../../campaigns/schemas/campaign.schema';
+import { Campaign, CampaignDocument } from '../../campaigns/schemas/campaign.schema';
 import { Contact } from '../../contacts/schemas/contact.schema';
 import { SegmentType } from '../../segments/constants/segment.enums';
 import { Segment, SegmentFilters } from '../../segments/schemas/segment.schema';
@@ -47,6 +48,8 @@ interface CampaignSchedulerPayload {
 })
 export class CampaignSchedulerProcessor extends WorkerHost {
   private readonly logger = new Logger(CampaignSchedulerProcessor.name);
+  private readonly limitResetDelayMs =
+    Math.max(1, Number(process.env.CAMPAIGN_LIMIT_RESET_DELAY_MINUTES ?? 24 * 60)) * 60 * 1000;
 
   constructor(
     @InjectModel(Campaign.name)
@@ -79,7 +82,7 @@ export class CampaignSchedulerProcessor extends WorkerHost {
     const workspaceId = this.toObjectId(payload.workspaceId);
     const campaignId = this.toObjectId(payload.campaignId);
 
-    const campaign = await this.campaignModel
+    let campaign = await this.campaignModel
       .findOne({
         _id: campaignId,
         workspaceId,
@@ -88,6 +91,11 @@ export class CampaignSchedulerProcessor extends WorkerHost {
 
     if (!campaign) {
       this.logger.warn(`Campaign not found for scheduler job id=${job.id}`);
+      return;
+    }
+
+    campaign = await this.tryResumePausedCampaignAfterLimit(campaign);
+    if (!campaign) {
       return;
     }
 
@@ -119,8 +127,10 @@ export class CampaignSchedulerProcessor extends WorkerHost {
 
     const recipients = await this.resolveAudienceRecipients(campaign);
     if (!recipients.length) {
+      const now = new Date();
       campaign.stats.queuedRecipients = 0;
       campaign.status = CampaignStatus.COMPLETED;
+      campaign.completedAt = now;
       await this.campaignModel.updateOne(
         {
           _id: campaignId,
@@ -130,6 +140,7 @@ export class CampaignSchedulerProcessor extends WorkerHost {
           $set: {
             status: CampaignStatus.COMPLETED,
             'stats.queuedRecipients': 0,
+            completedAt: now,
           },
         },
       ).exec();
@@ -308,6 +319,99 @@ export class CampaignSchedulerProcessor extends WorkerHost {
       `Campaign scheduler job failed id=${job.id} name=${job.name}: ${error.message}`,
       error.stack,
     );
+  }
+
+  private async tryResumePausedCampaignAfterLimit(
+    campaign: CampaignDocument,
+  ): Promise<CampaignDocument | null> {
+    const legacyLimitStopReason = 'system limit reached';
+
+    if (campaign.status !== CampaignStatus.PAUSED) {
+      return campaign;
+    }
+
+    const isLimitPaused =
+      campaign.stopReason === CAMPAIGN_STOP_REASON_DAILY_LIMIT ||
+      campaign.stopReason === legacyLimitStopReason;
+    if (!isLimitPaused) {
+      return null;
+    }
+
+    const now = new Date();
+    const fallbackBase = campaign.limitFailedAt ?? now;
+    const resumeAt =
+      campaign.limitResumeAt ?? new Date(fallbackBase.getTime() + this.limitResetDelayMs);
+
+    if (resumeAt.getTime() > now.getTime()) {
+      await this.queueService.enqueueCampaignScheduler(
+        {
+          campaignId: campaign.id,
+          workspaceId: campaign.workspaceId.toString(),
+        },
+        {
+          delay: Math.max(0, resumeAt.getTime() - now.getTime()),
+          jobId: `campaign-limit-resume:${campaign.id}`,
+        },
+      );
+      return null;
+    }
+
+    const resumedAt = new Date();
+    const updateResult = await this.campaignModel
+      .updateOne(
+        {
+          _id: campaign._id,
+          status: CampaignStatus.PAUSED,
+          stopReason: {
+            $in: [CAMPAIGN_STOP_REASON_DAILY_LIMIT, legacyLimitStopReason],
+          },
+        },
+        {
+          $set: {
+            status: CampaignStatus.RUNNING,
+            stoppedAt: null,
+            stopReason: null,
+            limitFailedAt: null,
+            limitResumeAt: null,
+            resentAt: resumedAt,
+            'stats.lastStartedAt': resumedAt,
+            'stats.limitFailedRecipients': 0,
+          },
+        },
+      )
+      .exec();
+
+    if (updateResult.modifiedCount === 0) {
+      const latest = await this.campaignModel
+        .findOne({
+          _id: campaign._id,
+          workspaceId: campaign.workspaceId,
+        })
+        .exec();
+
+      if (!latest) {
+        return null;
+      }
+
+      if (latest.status === CampaignStatus.PAUSED) {
+        return null;
+      }
+
+      return latest;
+    }
+
+    campaign.status = CampaignStatus.RUNNING;
+    campaign.stoppedAt = null;
+    campaign.stopReason = null;
+    campaign.limitFailedAt = null;
+    campaign.limitResumeAt = null;
+    campaign.resentAt = resumedAt;
+    if (!campaign.stats) {
+      campaign.stats = {} as any;
+    }
+    campaign.stats.limitFailedRecipients = 0;
+    campaign.stats.lastStartedAt = resumedAt;
+    return campaign;
   }
 
   private async resolveEligibleSenderCapacityInputs(

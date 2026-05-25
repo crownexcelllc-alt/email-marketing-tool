@@ -791,8 +791,10 @@ export class WhatsappService {
     const processed = sent + failed + skipped;
 
     if (processed >= total && total > 0) {
+      const now = new Date();
       campaign.status = CampaignStatus.COMPLETED;
       campaign.stats.queuedRecipients = 0;
+      campaign.completedAt = now;
       await this.campaignModel.updateOne(
         {
           _id: campaignId,
@@ -802,6 +804,7 @@ export class WhatsappService {
           $set: {
             status: CampaignStatus.COMPLETED,
             'stats.queuedRecipients': 0,
+            completedAt: now,
           },
         },
       ).exec();

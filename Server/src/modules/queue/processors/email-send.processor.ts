@@ -3,6 +3,7 @@ import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { AppException } from '../../../common/exceptions/app.exception';
 import { EmailSendWorkerInput, EmailService } from '../../email/email.service';
+import { QueueService } from '../queue.service';
 import {
   QUEUE_CONCURRENCY,
   QUEUE_NAMES,
@@ -19,7 +20,10 @@ import {
 export class EmailSendProcessor extends WorkerHost {
   private readonly logger = new Logger(EmailSendProcessor.name);
 
-  constructor(private readonly emailService: EmailService) {
+  constructor(
+    private readonly emailService: EmailService,
+    private readonly queueService: QueueService,
+  ) {
     super();
   }
 
@@ -56,6 +60,27 @@ export class EmailSendProcessor extends WorkerHost {
       if (outcome.type === 'permanent_failure') {
         this.logger.warn(
           `Permanent email failure for campaignRecipient=${payload.campaignRecipientId}: ${outcome.message}`,
+        );
+        return;
+      }
+
+      if (outcome.type === 'rate_limited') {
+        const resumeAt = new Date(outcome.resumeAt);
+        const delay = Math.max(0, resumeAt.getTime() - Date.now());
+
+        await this.queueService.enqueueCampaignScheduler(
+          {
+            campaignId: outcome.campaignId,
+            workspaceId: outcome.workspaceId,
+          },
+          {
+            delay,
+            jobId: `campaign-limit-resume:${outcome.campaignId}`,
+          },
+        );
+
+        this.logger.log(
+          `Scheduled campaign resume after daily limit campaign=${outcome.campaignId} resumeAt=${outcome.resumeAt}`,
         );
       }
     } catch (error) {

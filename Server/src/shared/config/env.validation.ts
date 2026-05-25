@@ -69,6 +69,7 @@ export const envValidationSchema = Joi.object({
   WHATSAPP_SEND_CONCURRENCY: Joi.number().integer().min(1).default(5),
   WEBHOOK_PROCESSING_CONCURRENCY: Joi.number().integer().min(1).default(5),
   ANALYTICS_AGGREGATION_CONCURRENCY: Joi.number().integer().min(1).default(2),
+  CAMPAIGN_LIMIT_RESET_DELAY_MINUTES: Joi.number().integer().min(1).default(24 * 60),
   WHATSAPP_WEBHOOK_VERIFY_TOKEN: Joi.string().allow('').default(''),
   TRACKING_BASE_URL: Joi.when('NODE_ENV', {
     is: Joi.valid('production', 'staging'),

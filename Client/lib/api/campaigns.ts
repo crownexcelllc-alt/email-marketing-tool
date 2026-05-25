@@ -136,6 +136,13 @@ function normalizeCampaign(input: unknown): Campaign {
     dailyCap: getNumber(record, ['dailyCap']) ?? null,
     editedAt: getString(record, ['editedAt']) ?? null,
     copyNumber: getNumber(record, ['copyNumber']) ?? 0,
+    startedAt: getString(record, ['startedAt']) ?? null,
+    stoppedAt: getString(record, ['stoppedAt']) ?? null,
+    stopReason: getString(record, ['stopReason']) ?? null,
+    limitFailedAt: getString(record, ['limitFailedAt']) ?? null,
+    limitResumeAt: getString(record, ['limitResumeAt']) ?? null,
+    resentAt: getString(record, ['resentAt']) ?? null,
+    completedAt: getString(record, ['completedAt']) ?? null,
     createdAt: getString(record, ['createdAt']),
     updatedAt: getString(record, ['updatedAt']),
     stats: {
@@ -144,6 +151,7 @@ function normalizeCampaign(input: unknown): Campaign {
       skippedRecipients: getNumber(statsRecord, ['skippedRecipients']),
       sentRecipients: getNumber(statsRecord, ['sentRecipients']),
       failedRecipients: getNumber(statsRecord, ['failedRecipients']),
+      limitFailedRecipients: getNumber(statsRecord, ['limitFailedRecipients']),
       openCount: getNumber(statsRecord, ['openCount']),
       clickCount: getNumber(statsRecord, ['clickCount']),
       whatsappSentCount: getNumber(statsRecord, ['whatsappSentCount']),
@@ -369,4 +377,27 @@ export async function getCampaignRecipientDetails(
   });
 
   return payload as CampaignRecipientDetailsResult;
+}
+
+export async function downloadCampaignRecipientsCsv(
+  campaignId: string,
+  type: 'sent' | 'remaining_failed',
+): Promise<Blob> {
+  const payload = await apiRequest<Blob>({
+    method: 'GET',
+    url: `/campaigns/${campaignId}/export-recipients`,
+    params: { type },
+    responseType: 'blob',
+  });
+
+  return payload;
+}
+
+export async function resendRemainingCampaign(campaignId: string): Promise<Campaign> {
+  const payload = await apiRequest<unknown, Record<string, unknown>>({
+    method: 'POST',
+    url: `/campaigns/${campaignId}/resend-remaining`,
+  });
+
+  return normalizeCampaign(payload);
 }

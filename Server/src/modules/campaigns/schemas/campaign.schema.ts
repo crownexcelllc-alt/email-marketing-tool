@@ -37,6 +37,9 @@ export class CampaignStats {
   failedRecipients!: number;
 
   @Prop({ type: Number, default: 0, min: 0 })
+  limitFailedRecipients!: number;
+
+  @Prop({ type: Number, default: 0, min: 0 })
   openCount!: number;
 
   @Prop({ type: Number, default: 0, min: 0 })
@@ -140,6 +143,27 @@ export class Campaign {
 
   @Prop({ type: Number, default: 0, min: 0 })
   copyNumber!: number;
+
+  @Prop({ type: Date, default: null })
+  startedAt!: Date | null;
+
+  @Prop({ type: Date, default: null })
+  stoppedAt!: Date | null;
+
+  @Prop({ type: String, default: null })
+  stopReason!: string | null;
+
+  @Prop({ type: Date, default: null })
+  limitFailedAt!: Date | null;
+
+  @Prop({ type: Date, default: null })
+  limitResumeAt!: Date | null;
+
+  @Prop({ type: Date, default: null })
+  resentAt!: Date | null;
+
+  @Prop({ type: Date, default: null })
+  completedAt!: Date | null;
 
   createdAt?: Date;
   updatedAt?: Date;

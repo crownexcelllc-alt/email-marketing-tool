@@ -26,7 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getCampaigns, duplicateCampaign, pauseCampaign, resumeCampaign } from '@/lib/api/campaigns';
+import { getCampaigns, duplicateCampaign, pauseCampaign, resumeCampaign, resendRemainingCampaign } from '@/lib/api/campaigns';
 import { getTemplates } from '@/lib/api/templates';
 import { HttpClientError } from '@/lib/api/errors';
 import type { Campaign } from '@/lib/types/campaign';
@@ -75,6 +75,11 @@ function StatusBadge({ status }: { status?: string }) {
       icon: <Circle className="h-3 w-3" />,
       label: 'Paused',
       cls: 'bg-zinc-100 text-zinc-600 border-zinc-200',
+    },
+    partially_sent: {
+      icon: <Clock className="h-3 w-3" />,
+      label: 'Partially Sent',
+      cls: 'bg-amber-100 text-amber-700 border-amber-200',
     },
   };
   const s = map[status ?? ''] ?? {
@@ -126,6 +131,20 @@ function CampaignCard({
   const template = campaign.templateId ? templateMap.get(campaign.templateId) : undefined;
   const stats = campaign.stats ?? {};
   const [actionLoading, setActionLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+
+  const handleResendRemaining = async () => {
+    setResendLoading(true);
+    try {
+      await resendRemainingCampaign(campaign.id);
+      toast.success('Resending remaining contacts started successfully.');
+      onSuccess();
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setResendLoading(false);
+    }
+  };
 
   const handlePause = async () => {
     setActionLoading(true);
@@ -186,11 +205,16 @@ function CampaignCard({
   const sent = stats.sentRecipients ?? 0;
   const failed = stats.failedRecipients ?? 0;
   const skipped = stats.skippedRecipients ?? 0;
-  const processed = sent + failed + skipped;
-  const remaining = Math.max(0, total - processed);
+  const limitFailed = stats.limitFailedRecipients ?? 0;
+  const permanentFailed = Math.max(0, failed - limitFailed);
+  const processed = sent + permanentFailed + skipped;
+  const remaining = stats.queuedRecipients ?? Math.max(0, total - (sent + failed + skipped));
 
-  const isCompleted = campaign.status === 'completed' || processed >= total;
+  const isCompleted = campaign.status === 'completed' && remaining === 0 && permanentFailed === 0;
+  const completedWithFailures = campaign.status === 'completed' && permanentFailed > 0 && remaining === 0;
+  const isPartiallySent = campaign.status === 'completed' && (limitFailed > 0 || remaining > 0);
   const percent = total > 0 ? Math.round((processed / total) * 100) : 0;
+  const showHistory = campaign.status !== 'draft';
 
   // Progress Bar Helper
   const renderProgress = () => {
@@ -201,29 +225,56 @@ function CampaignCard({
     const showStop = campaign.status === 'running' || campaign.status === 'scheduled';
     const showResume = campaign.status === 'paused';
     const showStartAgain = campaign.status === 'cancelled';
+    const showResendRemaining = isPartiallySent;
+
+    let progressTitle = 'Campaign Progress';
+    let titleClass = 'text-zinc-700';
+    let badgeClass = 'text-emerald-700 bg-emerald-50';
+
+    if (isCompleted) {
+      progressTitle = 'Campaign Completed Successfully';
+      titleClass = 'text-emerald-700';
+      badgeClass = 'text-emerald-700 bg-emerald-100';
+    } else if (completedWithFailures) {
+      progressTitle = 'Campaign Completed (with failures)';
+      titleClass = 'text-red-700';
+      badgeClass = 'text-red-700 bg-red-100';
+    } else if (isPartiallySent) {
+      progressTitle = 'Partially Sent (Daily Limit Reached)';
+      titleClass = 'text-amber-700';
+      badgeClass = 'text-amber-700 bg-amber-100';
+    }
 
     return (
       <div className="mt-4 rounded-lg border border-zinc-150 bg-zinc-50/50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-2">
-            <span className={`text-xs font-semibold ${isCompleted ? 'text-emerald-700' : 'text-zinc-700'}`}>
-              {isCompleted ? 'Campaign Completed Successfully' : 'Campaign Progress'}
+            <span className={`text-xs font-semibold ${titleClass}`}>
+              {progressTitle}
             </span>
-            <span className={`text-xs font-bold px-2 py-0.5 rounded ${isCompleted ? 'text-emerald-700 bg-emerald-100' : 'text-emerald-700 bg-emerald-50'}`}>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded ${badgeClass}`}>
               {percent}% Complete
             </span>
           </div>
 
           <div className="h-2 w-full rounded-full bg-zinc-100 overflow-hidden">
             <div
-              className="h-full rounded-full bg-emerald-600 transition-all duration-500 ease-out"
+              className={`h-full rounded-full transition-all duration-500 ease-out ${
+                isCompleted
+                  ? 'bg-emerald-600'
+                  : completedWithFailures
+                  ? 'bg-red-600'
+                  : isPartiallySent
+                  ? 'bg-amber-500'
+                  : 'bg-emerald-600'
+              }`}
               style={{ width: `${percent}%` }}
             />
           </div>
         </div>
 
-        {(showStop || showResume || showStartAgain) && (
-          <div className="shrink-0 flex items-center justify-end sm:border-l sm:border-zinc-200 sm:pl-4">
+        {(showStop || showResume || showStartAgain || showResendRemaining) && (
+          <div className="shrink-0 flex items-center justify-end sm:border-l sm:border-zinc-200 sm:pl-4 gap-2">
             {showStop && (
               <Button
                 size="sm"
@@ -270,6 +321,21 @@ function CampaignCard({
                 Start Again
               </Button>
             )}
+            {showResendRemaining && (
+              <Button
+                size="sm"
+                className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white font-medium shadow-sm transition-all"
+                onClick={handleResendRemaining}
+                disabled={resendLoading || actionLoading}
+              >
+                {resendLoading ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RotateCw className="h-3.5 w-3.5" />
+                )}
+                Resend Remaining
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -294,7 +360,7 @@ function CampaignCard({
                 </span>
               )}
             </Badge>
-            <StatusBadge status={campaign.status} />
+            <StatusBadge status={isPartiallySent ? 'partially_sent' : campaign.status} />
             {campaign.copyNumber === 0 || !campaign.copyNumber ? (
               <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800 font-medium">
                 Original
@@ -316,7 +382,7 @@ function CampaignCard({
 
           {/* Right: action buttons */}
           <div className="flex items-center gap-2">
-            {isCompleted && (
+            {showHistory && (
               <Button
                 size="sm"
                 variant="outline"

@@ -39,6 +39,13 @@ export interface Campaign {
   dailyCap?: number | null;
   editedAt?: string | null;
   copyNumber?: number;
+  startedAt?: string | null;
+  stoppedAt?: string | null;
+  stopReason?: string | null;
+  limitFailedAt?: string | null;
+  limitResumeAt?: string | null;
+  resentAt?: string | null;
+  completedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
   stats?: {
@@ -47,6 +54,7 @@ export interface Campaign {
     skippedRecipients?: number;
     sentRecipients?: number;
     failedRecipients?: number;
+    limitFailedRecipients?: number;
     openCount?: number;
     clickCount?: number;
     whatsappSentCount?: number;
@@ -79,6 +87,7 @@ export interface CampaignRecipientDetail {
   sentAt: string | null;
   openedAt: string | null;
   clickedAt: string | null;
+  failureReason?: string | null;
 }
 
 export interface CampaignRecipientDetailsResult {

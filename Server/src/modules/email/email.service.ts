@@ -5,7 +5,9 @@ import SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { Model, Types } from 'mongoose';
 import { AppException } from '../../common/exceptions/app.exception';
 import {
+  CAMPAIGN_STOP_REASON_DAILY_LIMIT,
   CampaignChannel,
+  DAILY_LIMIT_FAILURE_PATTERN,
   CampaignRecipientStatus,
   CampaignStatus,
 } from '../campaigns/constants/campaign.enums';
@@ -30,7 +32,7 @@ import { TemplateChannelType } from '../templates/constants/template.enums';
 import { Template, TemplateDocument } from '../templates/schemas/template.schema';
 import { TrackingLinkService } from '../tracking/tracking-link.service';
 import { EmailFailureCategory, EmailSendEventType } from './constants/email.enums';
-import { classifyEmailFailure } from './email-failure.utils';
+import { classifyEmailFailure, EmailFailureClassification } from './email-failure.utils';
 import {
   injectEmailTrackingPlaceholders,
   renderEmailTemplateWithContact,
@@ -48,6 +50,13 @@ export type EmailSendProcessOutcome =
   | { type: 'success' }
   | { type: 'retryable_failure'; message: string }
   | { type: 'permanent_failure'; message: string }
+  | {
+      type: 'rate_limited';
+      message: string;
+      campaignId: string;
+      workspaceId: string;
+      resumeAt: string;
+    }
   | { type: 'suppressed' }
   | { type: 'noop' };
 
@@ -68,6 +77,8 @@ interface EmailSendContext {
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
+  private readonly limitResetDelayMs =
+    Math.max(1, Number(process.env.CAMPAIGN_LIMIT_RESET_DELAY_MINUTES ?? 24 * 60)) * 60 * 1000;
 
   constructor(
     @InjectModel(Campaign.name)
@@ -118,10 +129,19 @@ export class EmailService {
       } else if (context.campaign.status === CampaignStatus.PAUSED) {
         await this.campaignRecipientModel
           .updateOne(
-            { _id: context.recipient._id },
+            {
+              _id: context.recipient._id,
+              status: {
+                $in: [
+                  CampaignRecipientStatus.PENDING,
+                  CampaignRecipientStatus.QUEUED,
+                  CampaignRecipientStatus.SENDING,
+                ],
+              },
+            },
             {
               $set: {
-                status: CampaignRecipientStatus.QUEUED,
+                status: CampaignRecipientStatus.PENDING,
                 failureReason: '',
               },
             },
@@ -282,7 +302,36 @@ export class EmailService {
       return { type: 'success' };
     } catch (error) {
       const failure = classifyEmailFailure(error);
+      const isLimitError = this.isDailyLimitError(failure);
       const retriesRemaining = ctx.attempt < ctx.maxAttempts;
+
+      if (isLimitError) {
+        const resumeAt = await this.handleDailyLimitReached(context, failure);
+
+        await this.recordSendEvent({
+          context,
+          eventType: EmailSendEventType.SEND_FAILED_TEMPORARY,
+          failureCategory: EmailFailureCategory.TEMPORARY,
+          failureCode: failure.code,
+          failureMessage: failure.message,
+          smtpResponseCode: failure.smtpResponseCode,
+          attempt: ctx.attempt,
+          maxAttempts: ctx.maxAttempts,
+          hardBounceCandidate: false,
+        });
+
+        this.logger.warn(
+          `Daily limit reached campaign=${context.campaign._id.toString()} recipient=${context.recipient._id.toString()} resumeAt=${resumeAt.toISOString()}`,
+        );
+
+        return {
+          type: 'rate_limited',
+          message: `${failure.code}: ${failure.message}`,
+          campaignId: context.campaign._id.toString(),
+          workspaceId: context.workspaceId.toString(),
+          resumeAt: resumeAt.toISOString(),
+        };
+      }
 
       if (failure.category === EmailFailureCategory.TEMPORARY && retriesRemaining) {
         await this.campaignRecipientModel
@@ -336,15 +385,15 @@ export class EmailService {
         )
         .exec();
 
+      const incFields: Record<string, number> = {
+        'stats.failedRecipients': 1,
+        'stats.queuedRecipients': -1,
+      };
+
       await this.campaignModel
         .updateOne(
           { _id: context.campaign._id },
-          {
-            $inc: {
-              'stats.failedRecipients': 1,
-              'stats.queuedRecipients': -1,
-            },
-          },
+          { $inc: incFields },
         )
         .exec();
 
@@ -698,6 +747,97 @@ export class EmailService {
     await this.tryMarkCampaignCompleted(context.campaign._id);
   }
 
+  private isDailyLimitError(failure: EmailFailureClassification): boolean {
+    return DAILY_LIMIT_FAILURE_PATTERN.test(`${failure.code} ${failure.message}`);
+  }
+
+  private resolveDailyLimitResumeAt(campaign: CampaignDocument, now: Date): Date {
+    if (campaign.limitResumeAt) {
+      return new Date(campaign.limitResumeAt);
+    }
+
+    return new Date(now.getTime() + this.limitResetDelayMs);
+  }
+
+  private async handleDailyLimitReached(
+    context: EmailSendContext,
+    failure: EmailFailureClassification,
+  ): Promise<Date> {
+    const now = new Date();
+    const resumeAt = this.resolveDailyLimitResumeAt(context.campaign, now);
+    const failureReason = `${failure.code}: ${failure.message}`;
+
+    await this.campaignRecipientModel
+      .updateOne(
+        {
+          _id: context.recipient._id,
+          status: CampaignRecipientStatus.SENDING,
+        },
+        {
+          $set: {
+            status: CampaignRecipientStatus.PENDING,
+            providerMessageId: null,
+            failureReason,
+            failedAt: null,
+          },
+        },
+      )
+      .exec();
+
+    await this.campaignRecipientModel
+      .updateMany(
+        {
+          campaignId: context.campaign._id,
+          status: CampaignRecipientStatus.QUEUED,
+        },
+        {
+          $set: {
+            status: CampaignRecipientStatus.PENDING,
+            failedAt: null,
+          },
+        },
+      )
+      .exec();
+
+    const remainingCount = await this.campaignRecipientModel
+      .countDocuments({
+        campaignId: context.campaign._id,
+        status: {
+          $in: [
+            CampaignRecipientStatus.PENDING,
+            CampaignRecipientStatus.QUEUED,
+            CampaignRecipientStatus.SENDING,
+          ],
+        },
+      })
+      .exec();
+
+    const setFields: Record<string, unknown> = {
+      status: CampaignStatus.PAUSED,
+      stoppedAt: now,
+      stopReason: CAMPAIGN_STOP_REASON_DAILY_LIMIT,
+      limitResumeAt: resumeAt,
+      'stats.limitFailedRecipients': remainingCount,
+      'stats.queuedRecipients': remainingCount,
+    };
+
+    if (!context.campaign.limitFailedAt) {
+      setFields.limitFailedAt = now;
+    }
+
+    await this.campaignModel
+      .updateOne(
+        {
+          _id: context.campaign._id,
+          status: { $in: [CampaignStatus.RUNNING, CampaignStatus.PAUSED] },
+        },
+        { $set: setFields },
+      )
+      .exec();
+
+    return resumeAt;
+  }
+
   /**
    * Atomically flip a RUNNING campaign to COMPLETED once queuedRecipients
    * reaches zero.  The condition on both `status` and `stats.queuedRecipients`
@@ -723,8 +863,10 @@ export class EmailService {
     const processed = sent + failed + skipped;
 
     if (processed >= total && total > 0) {
+      const now = new Date();
       campaign.status = CampaignStatus.COMPLETED;
       campaign.stats.queuedRecipients = 0;
+      campaign.completedAt = now;
       await this.campaignModel
         .updateOne(
           {
@@ -735,6 +877,7 @@ export class EmailService {
             $set: {
               status: CampaignStatus.COMPLETED,
               'stats.queuedRecipients': 0,
+              completedAt: now,
             },
           },
         )

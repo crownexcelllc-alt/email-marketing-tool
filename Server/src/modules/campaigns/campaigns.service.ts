@@ -17,8 +17,10 @@ import { Template } from '../templates/schemas/template.schema';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { CampaignDistributionService } from './campaign-distribution.service';
 import {
+  CAMPAIGN_STOP_REASON_MANUAL,
   CampaignChannel,
   CampaignDistributionStrategy,
+  DAILY_LIMIT_FAILURE_PATTERN,
   CampaignStatus,
   CampaignRecipientStatus,
 } from './constants/campaign.enums';
@@ -98,6 +100,7 @@ export class CampaignsService {
         skippedRecipients: 0,
         sentRecipients: 0,
         failedRecipients: 0,
+        limitFailedRecipients: 0,
         openCount: 0,
         uniqueOpenCount: 0,
         clickCount: 0,
@@ -151,8 +154,12 @@ export class CampaignsService {
 
     const totalPages = Math.max(1, Math.ceil(total / limit));
 
+    const campaignResponses = await Promise.all(
+      items.map((item) => this.toResponse(item)),
+    );
+
     return {
-      items: items.map((item) => this.toResponse(item)),
+      items: campaignResponses,
       pagination: {
         page,
         limit,
@@ -267,13 +274,21 @@ export class CampaignsService {
       this.campaignRecipientModel
         .countDocuments({
           campaignId: campaign._id,
-          status: {
-            $in: [
-              CampaignRecipientStatus.PENDING,
-              CampaignRecipientStatus.QUEUED,
-              CampaignRecipientStatus.SENDING,
-            ],
-          },
+          $or: [
+            {
+              status: {
+                $in: [
+                  CampaignRecipientStatus.PENDING,
+                  CampaignRecipientStatus.QUEUED,
+                  CampaignRecipientStatus.SENDING,
+                ],
+              },
+            },
+            {
+              status: CampaignRecipientStatus.FAILED,
+              failureReason: { $regex: DAILY_LIMIT_FAILURE_PATTERN },
+            },
+          ],
         })
         .exec(),
       this.campaignRecipientModel
@@ -302,13 +317,21 @@ export class CampaignsService {
     if (tab === 'sent') {
       filterQuery.status = CampaignRecipientStatus.SENT;
     } else if (tab === 'pending') {
-      filterQuery.status = {
-        $in: [
-          CampaignRecipientStatus.PENDING,
-          CampaignRecipientStatus.QUEUED,
-          CampaignRecipientStatus.SENDING,
-        ],
-      };
+      filterQuery.$or = [
+        {
+          status: {
+            $in: [
+              CampaignRecipientStatus.PENDING,
+              CampaignRecipientStatus.QUEUED,
+              CampaignRecipientStatus.SENDING,
+            ],
+          },
+        },
+        {
+          status: CampaignRecipientStatus.FAILED,
+          failureReason: { $regex: DAILY_LIMIT_FAILURE_PATTERN },
+        },
+      ];
     } else if (tab === 'opened') {
       filterQuery.status = CampaignRecipientStatus.SENT;
       filterQuery.contactId = { $in: openedContactIds };
@@ -452,6 +475,7 @@ export class CampaignsService {
         sentAt: recipient.sentAt,
         openedAt: act.open || null,
         clickedAt: act.click || null,
+        failureReason: recipient.failureReason || null,
       };
     });
 
@@ -469,6 +493,95 @@ export class CampaignsService {
         hasPrevious: page > 1,
       },
     };
+  }
+
+  async exportRecipientsCsv(
+    campaignId: string,
+    type: 'sent' | 'remaining_failed',
+    authUser: AuthUser,
+  ): Promise<string> {
+    const campaign = await this.findOwnedCampaign(campaignId, authUser);
+    const workspaceId = campaign.workspaceId;
+
+    const filterQuery: Record<string, any> = {
+      campaignId: campaign._id,
+    };
+
+    if (type === 'sent') {
+      filterQuery.status = CampaignRecipientStatus.SENT;
+    } else {
+      filterQuery.status = { $ne: CampaignRecipientStatus.SENT };
+    }
+
+    const recipients = await this.campaignRecipientModel
+      .find(filterQuery)
+      .populate('contactId')
+      .exec();
+
+    // Map contacts that are not populated (fallback)
+    const nullContactRecipients = recipients.filter((r) => !r.contactId);
+    const resolvedContactsMap = new Map<string, any>();
+    if (nullContactRecipients.length > 0) {
+      const addresses = nullContactRecipients.map((r) => r.address).filter(Boolean);
+      if (addresses.length > 0) {
+        const contacts = await this.contactModel
+          .find({
+            workspaceId,
+            $or: [
+              { email: { $in: addresses } },
+              { emailNormalized: { $in: addresses } },
+              { phone: { $in: addresses } },
+              { phoneNormalized: { $in: addresses } },
+            ],
+          })
+          .lean()
+          .exec();
+        for (const contactObj of contacts) {
+          if (contactObj.email) resolvedContactsMap.set(contactObj.email.toLowerCase(), contactObj);
+          if (contactObj.emailNormalized) resolvedContactsMap.set(contactObj.emailNormalized.toLowerCase(), contactObj);
+          if (contactObj.phone) resolvedContactsMap.set(contactObj.phone, contactObj);
+          if (contactObj.phoneNormalized) resolvedContactsMap.set(contactObj.phoneNormalized, contactObj);
+        }
+      }
+    }
+
+    const escapeCsv = (str: unknown) => {
+      const s = str === null || str === undefined ? '' : String(str);
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+
+    let csvContent = 'Name,Email,Status,Failure Reason,Sent At\n';
+
+    for (const recipient of recipients) {
+      let contactObj = recipient.contactId as any;
+      if (!contactObj && recipient.address) {
+        contactObj = resolvedContactsMap.get(recipient.address.toLowerCase());
+      }
+
+      let name = '';
+      if (contactObj) {
+        name =
+          (contactObj.fullName || '').trim() ||
+          `${contactObj.firstName || ''} ${contactObj.lastName || ''}`.trim();
+      }
+
+      const email = contactObj?.email || recipient.address || '';
+      
+      let displayStatus: string = recipient.status;
+      if (recipient.status === 'failed') {
+        const reason = recipient.failureReason || '';
+        if (DAILY_LIMIT_FAILURE_PATTERN.test(reason)) {
+          displayStatus = 'remaining (limit exceeded)';
+        }
+      }
+
+      const failureReason = recipient.failureReason || '';
+      const sentAt = recipient.sentAt ? recipient.sentAt.toISOString() : '';
+
+      csvContent += `${escapeCsv(name)},${escapeCsv(email)},${escapeCsv(displayStatus)},${escapeCsv(failureReason)},${escapeCsv(sentAt)}\n`;
+    }
+
+    return csvContent;
   }
 
   async update(id: string, dto: UpdateCampaignDto, authUser: AuthUser): Promise<CampaignResponse> {
@@ -689,6 +802,7 @@ export class CampaignsService {
         skippedRecipients: 0,
         sentRecipients: 0,
         failedRecipients: 0,
+        limitFailedRecipients: 0,
         openCount: 0,
         uniqueOpenCount: 0,
         clickCount: 0,
@@ -749,6 +863,12 @@ export class CampaignsService {
     campaign.stats.skippedRecipients = 0;
     campaign.stats.lastStartedAt = new Date();
     campaign.trackingBaseUrl = trackingBaseUrl;
+    campaign.startedAt = new Date();
+    campaign.stoppedAt = null;
+    campaign.stopReason = null;
+    campaign.limitFailedAt = null;
+    campaign.limitResumeAt = null;
+    campaign.completedAt = null;
 
     await this.campaignModel
       .updateOne(
@@ -761,6 +881,12 @@ export class CampaignsService {
             'stats.skippedRecipients': campaign.stats.skippedRecipients,
             'stats.lastStartedAt': campaign.stats.lastStartedAt,
             trackingBaseUrl: campaign.trackingBaseUrl,
+            startedAt: campaign.startedAt,
+            stoppedAt: null,
+            stopReason: null,
+            limitFailedAt: null,
+            limitResumeAt: null,
+            completedAt: null,
           },
         },
       )
@@ -797,7 +923,13 @@ export class CampaignsService {
     const result = await this.campaignModel
       .updateOne(
         { _id: campaign._id, status: { $ne: CampaignStatus.COMPLETED } },
-        { $set: { status: CampaignStatus.PAUSED } },
+        { 
+          $set: { 
+            status: CampaignStatus.PAUSED,
+            stoppedAt: new Date(),
+            stopReason: CAMPAIGN_STOP_REASON_MANUAL,
+          } 
+        },
       )
       .exec();
 
@@ -810,6 +942,8 @@ export class CampaignsService {
     }
 
     campaign.status = CampaignStatus.PAUSED;
+    campaign.stoppedAt = new Date();
+    campaign.stopReason = CAMPAIGN_STOP_REASON_MANUAL;
     return this.toResponse(campaign);
   }
 
@@ -835,6 +969,7 @@ export class CampaignsService {
         skippedRecipients: 0,
         sentRecipients: 0,
         failedRecipients: 0,
+        limitFailedRecipients: 0,
         openCount: 0,
         uniqueOpenCount: 0,
         clickCount: 0,
@@ -864,13 +999,39 @@ export class CampaignsService {
 
     campaign.status = CampaignStatus.RUNNING;
     campaign.trackingBaseUrl = trackingBaseUrl;
+    campaign.stoppedAt = null;
+    campaign.stopReason = null;
+    campaign.limitFailedAt = null;
+    campaign.limitResumeAt = null;
+    if (!campaign.stats) {
+      campaign.stats = {} as any;
+    }
+    campaign.stats.limitFailedRecipients = 0;
+    if (!campaign.startedAt) {
+      campaign.startedAt = new Date();
+    }
 
     const updateFields: Record<string, any> = {
       status: CampaignStatus.RUNNING,
       trackingBaseUrl: trackingBaseUrl,
+      stoppedAt: null,
+      stopReason: null,
+      limitFailedAt: null,
+      limitResumeAt: null,
+      'stats.limitFailedRecipients': 0,
     };
+    if (!campaign.startedAt || wasCancelled) {
+      updateFields.startedAt = new Date();
+      campaign.startedAt = updateFields.startedAt;
+    }
     if (wasCancelled) {
       updateFields.stats = campaign.stats;
+      updateFields.completedAt = null;
+      updateFields.limitFailedAt = null;
+      updateFields.limitResumeAt = null;
+      campaign.completedAt = null;
+      campaign.limitFailedAt = null;
+      campaign.limitResumeAt = null;
     }
 
     await this.campaignModel.updateOne({ _id: campaign._id }, { $set: updateFields }).exec();
@@ -900,7 +1061,13 @@ export class CampaignsService {
     const result = await this.campaignModel
       .updateOne(
         { _id: campaign._id, status: { $ne: CampaignStatus.COMPLETED } },
-        { $set: { status: CampaignStatus.CANCELLED } },
+        { 
+          $set: { 
+            status: CampaignStatus.CANCELLED,
+            stoppedAt: new Date(),
+            stopReason: CAMPAIGN_STOP_REASON_MANUAL,
+          } 
+        },
       )
       .exec();
 
@@ -913,6 +1080,104 @@ export class CampaignsService {
     }
 
     campaign.status = CampaignStatus.CANCELLED;
+    campaign.stoppedAt = new Date();
+    campaign.stopReason = CAMPAIGN_STOP_REASON_MANUAL;
+    return this.toResponse(campaign);
+  }
+
+  async resendRemaining(id: string, authUser: AuthUser): Promise<CampaignResponse> {
+    const campaign = await this.findOwnedCampaign(id, authUser);
+
+    const legacyLimitFailedCount = await this.campaignRecipientModel
+      .countDocuments({
+        campaignId: campaign._id,
+        status: CampaignRecipientStatus.FAILED,
+        failureReason: { $regex: DAILY_LIMIT_FAILURE_PATTERN },
+      })
+      .exec();
+
+    if (legacyLimitFailedCount > 0) {
+      await this.campaignRecipientModel
+        .updateMany(
+          {
+            campaignId: campaign._id,
+            status: CampaignRecipientStatus.FAILED,
+            failureReason: { $regex: DAILY_LIMIT_FAILURE_PATTERN },
+          },
+          {
+            $set: {
+              status: CampaignRecipientStatus.PENDING,
+              failedAt: null,
+            },
+          },
+        )
+        .exec();
+    }
+
+    const pendingCount = await this.campaignRecipientModel
+      .countDocuments({
+        campaignId: campaign._id,
+        status: {
+          $in: [
+            CampaignRecipientStatus.PENDING,
+            CampaignRecipientStatus.QUEUED,
+            CampaignRecipientStatus.SENDING,
+          ],
+        },
+      })
+      .exec();
+
+    if (pendingCount === 0) {
+      throw new AppException(
+        HttpStatus.BAD_REQUEST,
+        'NO_LIMIT_FAILED_RECIPIENTS',
+        'No pending recipients remain to resend.',
+      );
+    }
+
+    const updatedStats = { ...campaign.stats };
+    updatedStats.failedRecipients = Math.max(
+      0,
+      (updatedStats.failedRecipients || 0) - legacyLimitFailedCount,
+    );
+    updatedStats.queuedRecipients = pendingCount;
+    updatedStats.limitFailedRecipients = 0;
+
+    const now = new Date();
+    await this.campaignModel
+      .updateOne(
+        { _id: campaign._id },
+        {
+          $set: {
+            status: CampaignStatus.RUNNING,
+            stats: updatedStats,
+            startedAt: now,
+            stoppedAt: null,
+            stopReason: null,
+            limitFailedAt: null,
+            limitResumeAt: null,
+            resentAt: now,
+            completedAt: null,
+          },
+        },
+      )
+      .exec();
+
+    await this.queueService.enqueueCampaignScheduler({
+      campaignId: campaign.id,
+      workspaceId: campaign.workspaceId.toString(),
+    });
+
+    campaign.status = CampaignStatus.RUNNING;
+    campaign.stats = updatedStats as any;
+    campaign.startedAt = now;
+    campaign.stoppedAt = null;
+    campaign.stopReason = null;
+    campaign.limitFailedAt = null;
+    campaign.limitResumeAt = null;
+    (campaign as any).resentAt = now;
+    campaign.completedAt = null;
+
     return this.toResponse(campaign);
   }
 
@@ -1205,7 +1470,7 @@ export class CampaignsService {
     return Math.min(base, campaignDailyCap);
   }
 
-  private toResponse(campaign: CampaignDocument): CampaignResponse {
+  private async toResponse(campaign: CampaignDocument): Promise<CampaignResponse> {
     const templateObj = campaign.templateId as any;
     const isPopulated = templateObj && typeof templateObj === 'object' && 'name' in templateObj;
     const rawTemplateId = campaign.populated('templateId') || campaign.templateId;
@@ -1214,6 +1479,61 @@ export class CampaignsService {
     const templateSubject = isPopulated
       ? templateObj.email?.subject || templateObj.whatsapp?.templateName || null
       : null;
+
+    // Dynamically query actual counts from logs
+    const [
+      sentRecipients,
+      failedRecipients,
+      skippedRecipients,
+      limitFailedRecipients,
+      openCount,
+      uniqueOpenCount,
+      clickCount,
+      uniqueClickCount,
+    ] = await Promise.all([
+      this.campaignRecipientModel.countDocuments({
+        campaignId: campaign._id,
+        status: CampaignRecipientStatus.SENT,
+      }),
+      this.campaignRecipientModel.countDocuments({
+        campaignId: campaign._id,
+        status: CampaignRecipientStatus.FAILED,
+      }),
+      this.campaignRecipientModel.countDocuments({
+        campaignId: campaign._id,
+        status: CampaignRecipientStatus.SKIPPED,
+      }),
+      this.campaignRecipientModel.countDocuments({
+        campaignId: campaign._id,
+        status: CampaignRecipientStatus.FAILED,
+        failureReason: { $regex: DAILY_LIMIT_FAILURE_PATTERN },
+      }),
+      this.contactActivityModel.countDocuments({
+        campaignId: campaign._id,
+        eventType: TrackingEventType.OPEN,
+      }),
+      this.contactActivityModel
+        .distinct('contactId', {
+          campaignId: campaign._id,
+          eventType: TrackingEventType.OPEN,
+        })
+        .exec()
+        .then((res) => res.length),
+      this.contactActivityModel.countDocuments({
+        campaignId: campaign._id,
+        eventType: TrackingEventType.CLICK,
+      }),
+      this.contactActivityModel
+        .distinct('contactId', {
+          campaignId: campaign._id,
+          eventType: TrackingEventType.CLICK,
+        })
+        .exec()
+        .then((res) => res.length),
+    ]);
+
+    const totalRecipients = campaign.stats?.totalRecipients || campaign.contactIds.length || 0;
+    const computedRemaining = Math.max(0, totalRecipients - sentRecipients);
 
     return {
       id: campaign.id,
@@ -1242,15 +1562,16 @@ export class CampaignsService {
       },
       trackingBaseUrl: campaign.trackingBaseUrl ?? null,
       stats: {
-        totalRecipients: campaign.stats?.totalRecipients || campaign.contactIds.length || 0,
-        queuedRecipients: campaign.stats?.queuedRecipients ?? 0,
-        skippedRecipients: campaign.stats?.skippedRecipients ?? 0,
-        sentRecipients: campaign.stats?.sentRecipients ?? 0,
-        failedRecipients: campaign.stats?.failedRecipients ?? 0,
-        openCount: campaign.stats?.openCount ?? 0,
-        uniqueOpenCount: campaign.stats?.uniqueOpenCount ?? 0,
-        clickCount: campaign.stats?.clickCount ?? 0,
-        uniqueClickCount: campaign.stats?.uniqueClickCount ?? 0,
+        totalRecipients,
+        queuedRecipients: computedRemaining,
+        skippedRecipients,
+        sentRecipients,
+        failedRecipients,
+        limitFailedRecipients,
+        openCount,
+        uniqueOpenCount,
+        clickCount,
+        uniqueClickCount,
         whatsappSentCount: campaign.stats?.whatsappSentCount ?? 0,
         whatsappDeliveredCount: campaign.stats?.whatsappDeliveredCount ?? 0,
         whatsappReadCount: campaign.stats?.whatsappReadCount ?? 0,
@@ -1262,6 +1583,13 @@ export class CampaignsService {
       },
       editedAt: campaign.editedAt ?? null,
       copyNumber: campaign.copyNumber ?? 0,
+      startedAt: campaign.startedAt ?? null,
+      stoppedAt: campaign.stoppedAt ?? null,
+      stopReason: campaign.stopReason ?? null,
+      limitFailedAt: campaign.limitFailedAt ?? null,
+      limitResumeAt: campaign.limitResumeAt ?? null,
+      resentAt: (campaign as any).resentAt ?? null,
+      completedAt: campaign.completedAt ?? null,
       createdAt: campaign.createdAt,
       updatedAt: campaign.updatedAt,
     };

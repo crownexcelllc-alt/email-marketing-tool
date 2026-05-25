@@ -35,6 +35,7 @@ export interface CampaignResponse {
     skippedRecipients: number;
     sentRecipients: number;
     failedRecipients: number;
+    limitFailedRecipients: number;
     openCount: number;
     uniqueOpenCount: number;
     clickCount: number;
@@ -50,6 +51,13 @@ export interface CampaignResponse {
   };
   editedAt: Date | null;
   copyNumber: number;
+  startedAt?: Date | null;
+  stoppedAt?: Date | null;
+  stopReason?: string | null;
+  limitFailedAt?: Date | null;
+  limitResumeAt?: Date | null;
+  resentAt?: Date | null;
+  completedAt?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
 }

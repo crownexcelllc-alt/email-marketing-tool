@@ -226,7 +226,10 @@ export class AnalyticsService {
         ? campaign.stats?.whatsappDeliveredCount ?? 0
         : totalSent;
     const bouncedCount = sendEventAgg.eventBreakdown[EmailSendEventType.SEND_FAILED_TEMPORARY] ?? 0;
-    const pendingCount = Math.max(totalRecipients - totalSent - totalFailed, 0);
+    const pendingCount = Math.max(
+      campaign.stats?.queuedRecipients ?? totalRecipients - totalSent - totalFailed,
+      0,
+    );
 
     const openRate = this.safeDivide(campaign.stats?.uniqueOpenCount ?? 0, sendSuccess);
     const clickRate = this.safeDivide(campaign.stats?.uniqueClickCount ?? 0, sendSuccess);

@@ -1,5 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { Request } from 'express';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Request, Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { AuthUser } from '../../common/types/auth-user.type';
@@ -52,6 +52,19 @@ export class CampaignsController {
     return this.campaignsService.findRecipientDetails(id, query, authUser);
   }
 
+  @Get(':id/export-recipients')
+  async exportRecipients(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Query('type') type: 'sent' | 'remaining_failed',
+    @CurrentUser() authUser: AuthUser,
+    @Res() res: Response,
+  ) {
+    const csvContent = await this.campaignsService.exportRecipientsCsv(id, type, authUser);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="campaign-${id}-${type}.csv"`);
+    return res.send(csvContent);
+  }
+
   @Get(':id')
   findOne(
     @Param('id', ParseObjectIdPipe) id: string,
@@ -99,6 +112,14 @@ export class CampaignsController {
     const host = request.headers['x-forwarded-host'] || request.get('host');
     const trackingBaseUrl = `${protocol}://${host}`;
     return this.campaignsService.resume(id, authUser, trackingBaseUrl);
+  }
+
+  @Post(':id/resend-remaining')
+  resendRemaining(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @CurrentUser() authUser: AuthUser,
+  ): Promise<CampaignResponse> {
+    return this.campaignsService.resendRemaining(id, authUser);
   }
 
   @Post(':id/cancel')
