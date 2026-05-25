@@ -16,7 +16,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { updateCampaign, startCampaign } from '@/lib/api/campaigns';
-import { getAllContacts, getContacts, getContactCategorySummary } from '@/lib/api/contacts';
+import { getAllContacts, getContactCategorySummary } from '@/lib/api/contacts';
 import { getSegments } from '@/lib/api/segments';
 import { getSenderAccounts } from '@/lib/api/sender-accounts';
 import { getTemplates } from '@/lib/api/templates';
@@ -188,13 +188,13 @@ export function CampaignEditRerunDialog({ open, campaign, onOpenChange, onSucces
       setIsLoading(true);
       const [contactsRes, sendersRes, templatesRes, categoriesRes, segmentsRes] =
         await Promise.allSettled([
-          getContacts({ page: 1, limit: 100 }),
+          getAllContacts(),
           getSenderAccounts(ch),
           getTemplates({ page: 1, limit: 100, type: ch }),
           getContactCategorySummary(),
           getSegments({ page: 1, limit: 100 }),
         ]);
-      if (contactsRes.status === 'fulfilled') setContacts(contactsRes.value.items);
+      if (contactsRes.status === 'fulfilled') setContacts(contactsRes.value);
       if (sendersRes.status === 'fulfilled') setSenderAccounts(sendersRes.value);
       if (templatesRes.status === 'fulfilled') setTemplates(templatesRes.value.items);
       if (categoriesRes.status === 'fulfilled') setCategories(categoriesRes.value.categories);

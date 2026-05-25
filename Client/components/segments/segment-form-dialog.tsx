@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { getContacts } from '@/lib/api/contacts';
+import { getAllContacts } from '@/lib/api/contacts';
 import type { Contact } from '@/lib/types/contact';
 import type { Segment } from '@/lib/types/segment';
 import { segmentFormSchema, type SegmentFormValues } from '@/lib/validators/segment';
@@ -114,9 +114,9 @@ export function SegmentFormDialog({
       setIsLoadingContacts(true);
 
       try {
-        const response = await getContacts({ page: 1, limit: 100 });
+        const response = await getAllContacts();
         if (isMounted) {
-          setContacts(response.items);
+          setContacts(response);
         }
       } finally {
         if (isMounted) {

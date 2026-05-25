@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/dialog';
 import { createCampaign, deleteCampaign, getCampaignContacts, getCampaigns, startCampaign, updateCampaign } from '@/lib/api/campaigns';
 import { bulkAddLabelToContacts, updateContact } from '@/lib/api/contacts';
-import { getAllContacts, getContacts, getContactCategorySummary } from '@/lib/api/contacts';
+import { getAllContacts, getContactCategorySummary } from '@/lib/api/contacts';
 import type { ContactCategorySummaryItem } from '@/lib/types/contact';
 import { getSegments } from '@/lib/api/segments';
 import { getSenderAccounts } from '@/lib/api/sender-accounts';
@@ -346,7 +346,7 @@ export function CampaignBuilder() {
     setIsLoadingOptions(true);
 
     const [contactsResult, segmentsResult, senderResult, templateResult, categoriesResult] = await Promise.allSettled([
-      getContacts({ page: 1, limit: 100 }),
+      getAllContacts(),
       getSegments({ page: 1, limit: 100 }),
       getSenderAccounts(channel),
       getTemplates({ page: 1, limit: 100, type: channel }),
@@ -354,7 +354,7 @@ export function CampaignBuilder() {
     ]);
 
     if (contactsResult.status === 'fulfilled') {
-      setContacts(contactsResult.value.items);
+      setContacts(contactsResult.value);
     } else {
       setContacts([]);
     }
