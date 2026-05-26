@@ -225,7 +225,7 @@ export class EmailService {
         campaignId: context.campaign._id.toString(),
         campaignRecipientId: context.recipient._id.toString(),
         contactId: context.contact._id.toString(),
-        trackingBaseUrl: context.campaign.trackingBaseUrl,
+        trackingBaseUrl: process.env.TRACKING_BASE_URL || context.campaign.trackingBaseUrl,
       });
       const trackingDiagnostics = {
         opensEnabled: context.campaign.trackOpens,
@@ -751,9 +751,10 @@ export class EmailService {
     return DAILY_LIMIT_FAILURE_PATTERN.test(`${failure.code} ${failure.message}`);
   }
 
-  private resolveDailyLimitResumeAt(campaign: CampaignDocument, now: Date): Date {
-    if (campaign.limitResumeAt) {
-      return new Date(campaign.limitResumeAt);
+  private async resolveDailyLimitResumeAt(campaign: CampaignDocument, now: Date): Promise<Date> {
+    const latest = await this.campaignModel.findById(campaign._id).select('limitResumeAt').exec();
+    if (latest && latest.limitResumeAt) {
+      return new Date(latest.limitResumeAt);
     }
 
     return new Date(now.getTime() + this.limitResetDelayMs);
@@ -764,7 +765,7 @@ export class EmailService {
     failure: EmailFailureClassification,
   ): Promise<Date> {
     const now = new Date();
-    const resumeAt = this.resolveDailyLimitResumeAt(context.campaign, now);
+    const resumeAt = await this.resolveDailyLimitResumeAt(context.campaign, now);
     const failureReason = `${failure.code}: ${failure.message}`;
 
     await this.campaignRecipientModel
