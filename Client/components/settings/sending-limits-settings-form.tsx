@@ -107,18 +107,20 @@ export function SendingLimitsSettingsForm({
   return (
     <div className="space-y-6">
       {/* Top Section - Default Sending Limits Banner */}
-      <div className="flex items-start gap-3 rounded-lg border border-zinc-200 bg-white p-4 text-sm text-zinc-900 shadow-sm">
-        <Info className="mt-0.5 h-5 w-5 shrink-0 text-zinc-500" />
+      <div className="flex items-start gap-3 rounded-lg border border-yellow-200 bg-yellow-50/35 p-4 text-sm text-zinc-900 shadow-sm dark:bg-yellow-950/10 dark:border-yellow-900/30">
+        <Info className="mt-0.5 h-5 w-5 shrink-0 text-yellow-600 dark:text-yellow-500" />
         <div>
-          <h4 className="font-semibold text-zinc-900">Default Sending Limits</h4>
-          <p className="mt-1 text-zinc-650">
-            These system-wide default settings apply to all channels unless specific overrides are saved:
+          <h4 className="font-semibold text-zinc-900 flex items-center gap-2">
+            Default Sending Limits <Badge variant="neutral" className="scale-90 font-normal">Optimized for Google Workspace</Badge>
+          </h4>
+          <p className="mt-1 text-zinc-600 dark:text-zinc-400 text-xs sm:text-sm">
+            These safe default values are pre-configured to prevent Google Workspace / G Suite SMTP servers from flagging outbound emails as spam or triggering rolling rate limit locks. Custom overrides can be saved for any channel below.
           </p>
-          <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-1.5 text-zinc-800">
-            <div>Default Min Delay: <span className="font-mono text-zinc-900 font-semibold">15s</span></div>
-            <div>Default Max Delay: <span className="font-mono text-zinc-900 font-semibold">30s</span></div>
-            <div>Default Daily Limit: <span className="font-mono text-zinc-900 font-semibold">5000</span></div>
-            <div>Default Hourly Limit: <span className="font-mono text-zinc-900 font-semibold">500</span></div>
+          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-1.5 text-xs text-zinc-700 dark:text-zinc-300">
+            <div>Default Min Delay: <span className="font-mono text-zinc-900 dark:text-zinc-100 font-semibold">50s</span></div>
+            <div>Default Max Delay: <span className="font-mono text-zinc-900 dark:text-zinc-100 font-semibold">80s</span></div>
+            <div>Default Daily Limit: <span className="font-mono text-zinc-900 dark:text-zinc-100 font-semibold">275</span></div>
+            <div>Default Hourly Limit: <span className="font-mono text-zinc-900 dark:text-zinc-100 font-semibold">50</span></div>
           </div>
         </div>
       </div>

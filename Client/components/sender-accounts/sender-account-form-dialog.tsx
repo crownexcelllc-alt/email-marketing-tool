@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Info } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
@@ -416,8 +416,12 @@ export function SenderAccountFormDialog({
                   />
                 </div>
                 <div className="col-span-2 rounded border border-zinc-200 dark:border-zinc-800/50 bg-zinc-50 dark:bg-zinc-950/30 p-3 text-xs text-zinc-500 dark:text-zinc-400">
-                  Sending limits can be updated from:{' '}
-                  <span className="font-semibold text-zinc-700 dark:text-zinc-300">Settings &rarr; Sending Limits</span> section.
+                  <div className="font-semibold text-zinc-700 dark:text-zinc-300 mb-1 flex items-center gap-1.5">
+                    <Info className="h-3.5 w-3.5 text-yellow-600 dark:text-yellow-500 shrink-0" />
+                    Google Workspace SMTP Optimization Note
+                  </div>
+                  System defaults (Min Delay: 50s, Max Delay: 80s, Daily Limit: 275, Hourly Limit: 50) are optimized for Google Workspace accounts to prevent spam flagging. These can be adjusted globally under{' '}
+                  <span className="font-semibold text-zinc-750 dark:text-zinc-300">Settings &rarr; Sending Limits</span>.
                 </div>
 
               </div>

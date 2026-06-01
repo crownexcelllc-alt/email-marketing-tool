@@ -155,10 +155,10 @@ export class CampaignSchedulerProcessor extends WorkerHost {
     const channel = campaign.channel; // 'email' or 'whatsapp'
     const channelLimits = settings?.sendingLimits?.[channel as 'email' | 'whatsapp' | 'sms'];
 
-    const dailyLimit = channelLimits?.dailyLimit ?? settings?.sendingLimits?.dailyLimit ?? 5000;
-    const hourlyLimit = channelLimits?.hourlyLimit ?? settings?.sendingLimits?.hourlyLimit ?? 500;
-    const minDelay = channelLimits?.minDelaySeconds ?? settings?.sendingLimits?.minDelaySeconds ?? 15;
-    const maxDelay = channelLimits?.maxDelaySeconds ?? settings?.sendingLimits?.maxDelaySeconds ?? 30;
+    const dailyLimit = channelLimits?.dailyLimit ?? settings?.sendingLimits?.dailyLimit ?? 275;
+    const hourlyLimit = channelLimits?.hourlyLimit ?? settings?.sendingLimits?.hourlyLimit ?? 50;
+    const minDelay = channelLimits?.minDelaySeconds ?? settings?.sendingLimits?.minDelaySeconds ?? 50;
+    const maxDelay = channelLimits?.maxDelaySeconds ?? settings?.sendingLimits?.maxDelaySeconds ?? 80;
     const respectSenderLimits = settings?.sendingLimits?.respectSenderLimits ?? true;
 
     const senderInputs = await this.resolveEligibleSenderCapacityInputs(

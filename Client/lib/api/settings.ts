@@ -30,10 +30,10 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
     defaultLanguage: 'en',
   },
   sendingLimits: {
-    dailyLimit: 5000,
-    hourlyLimit: 500,
-    minDelaySeconds: 15,
-    maxDelaySeconds: 30,
+    dailyLimit: 275,
+    hourlyLimit: 50,
+    minDelaySeconds: 50,
+    maxDelaySeconds: 80,
     respectSenderLimits: true,
   },
   tracking: {
