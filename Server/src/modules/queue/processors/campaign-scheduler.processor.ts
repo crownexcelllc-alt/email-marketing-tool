@@ -342,14 +342,15 @@ export class CampaignSchedulerProcessor extends WorkerHost {
     const resumeAt =
       campaign.limitResumeAt ?? new Date(fallbackBase.getTime() + this.limitResetDelayMs);
 
-    if (resumeAt.getTime() > now.getTime()) {
+    const timeRemainingMs = resumeAt.getTime() - now.getTime();
+    if (timeRemainingMs > 5000) {
       await this.queueService.enqueueCampaignScheduler(
         {
           campaignId: campaign.id,
           workspaceId: campaign.workspaceId.toString(),
         },
         {
-          delay: Math.max(0, resumeAt.getTime() - now.getTime()),
+          delay: Math.max(0, timeRemainingMs),
           jobId: `campaign-limit-resume-${campaign.id}-${resumeAt.getTime()}`,
         },
       );
