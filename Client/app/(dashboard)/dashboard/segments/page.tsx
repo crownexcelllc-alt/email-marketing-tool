@@ -7,6 +7,7 @@ import {
   Circle,
   Clock,
   Copy,
+  HelpCircle,
   Mail,
   MessageSquare,
   MousePointerClick,
@@ -23,6 +24,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { CampaignEditRerunDialog } from '@/components/campaigns/campaign-edit-rerun-dialog';
 import { CampaignHistoryDetailsPanel } from '@/components/campaigns/campaign-history-details-dialog';
+import { SendingLimitInfoDialog } from '@/components/campaigns/sending-limit-info-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -612,6 +614,7 @@ export default function SegmentsPage() {
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [historyCampaign, setHistoryCampaign] = useState<Campaign | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isLimitInfoOpen, setIsLimitInfoOpen] = useState(false);
 
   const load = useCallback(async (pageNum: number, isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -722,16 +725,27 @@ export default function SegmentsPage() {
 
       {/* Summary bar */}
       {!loading && (
-        <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-600">
-          <BarChart2 className="h-4 w-4 shrink-0 text-zinc-400" />
-          <span>
-            <strong className="text-zinc-800">{total}</strong> campaign
-            {total !== 1 ? 's' : ''} in history
-          </span>
-          <span className="text-zinc-300">•</span>
-          <span className="text-xs text-zinc-400">
-            Templates always reflect their latest edited version
-          </span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm text-zinc-600">
+          <div className="flex flex-wrap items-center gap-2">
+            <BarChart2 className="h-4 w-4 shrink-0 text-zinc-400" />
+            <span>
+              <strong className="text-zinc-800">{total}</strong> campaign
+              {total !== 1 ? 's' : ''} in history
+            </span>
+            <span className="text-zinc-300">•</span>
+            <span className="text-xs text-zinc-400">
+              Templates always reflect their latest edited version
+            </span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 h-7 text-xs border-zinc-200 bg-white text-zinc-700 hover:text-zinc-900 shrink-0"
+            onClick={() => setIsLimitInfoOpen(true)}
+          >
+            <HelpCircle className="h-3.5 w-3.5" />
+            Sending Limit Info
+          </Button>
         </div>
       )}
 
@@ -811,6 +825,11 @@ export default function SegmentsPage() {
         open={isHistoryOpen}
         campaign={historyCampaign}
         onOpenChange={setIsHistoryOpen}
+      />
+
+      <SendingLimitInfoDialog
+        open={isLimitInfoOpen}
+        onOpenChange={setIsLimitInfoOpen}
       />
     </section>
   );
