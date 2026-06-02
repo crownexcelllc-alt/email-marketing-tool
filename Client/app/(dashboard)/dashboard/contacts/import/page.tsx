@@ -52,7 +52,7 @@ export default function ImportPreviewPage() {
     router.push('/dashboard/contacts');
   };
 
-  const handleStartImport = async (category?: string) => {
+  const handleStartImport = async (category?: string, importName?: string) => {
     const file = fileRef.current;
     if (!file) {
       toast.error('No file found. Please re-select your CSV and try again.');
@@ -63,7 +63,7 @@ export default function ImportPreviewPage() {
 
     toast.info('Starting import — please wait while the server processes the data...');
     try {
-      const completed = await importContacts(file, category);
+      const completed = await importContacts(file, category, importName);
       clearPendingImport();
 
       // Store the result and show the Results button/modal — don't auto-navigate
@@ -167,7 +167,7 @@ export default function ImportPreviewPage() {
           result={result}
           isImporting={isImporting}
           categories={categories}
-          onStartImport={(category) => void handleStartImport(category)}
+          onStartImport={(category, importName) => void handleStartImport(category, importName)}
           onCancel={handleCancel}
         />
       </div>

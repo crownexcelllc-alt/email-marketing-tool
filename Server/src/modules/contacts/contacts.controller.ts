@@ -28,6 +28,7 @@ import { UpdateContactDto } from './dto/update-contact.dto';
 import { ContactsService } from './contacts.service';
 import {
   ContactCategorySummaryResponse,
+  ContactImportHistoryListResponse,
   ContactImportResultResponse,
   ContactListResponse,
   ContactResponse,
@@ -75,6 +76,13 @@ export class ContactsController {
     @CurrentUser() authUser: AuthUser,
   ): Promise<ContactCategorySummaryResponse> {
     return this.contactsService.getCategorySummary(authUser);
+  }
+
+  @Get('import-history')
+  getImportHistory(
+    @CurrentUser() authUser: AuthUser,
+  ): Promise<ContactImportHistoryListResponse> {
+    return this.contactsService.getImportHistory(authUser);
   }
 
   @Delete('categories/:category')

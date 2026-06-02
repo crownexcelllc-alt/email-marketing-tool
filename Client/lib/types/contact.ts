@@ -73,9 +73,11 @@ export interface ContactsImportResult {
   invalid: number;
   total: number;
   message?: string;
+  importId?: string;
   invalidRows?: ContactsImportInvalidRow[];
   skippedRows?: ContactsImportSkippedRow[];
 }
+
 
 export interface ContactCategorySummaryItem {
   category: string;

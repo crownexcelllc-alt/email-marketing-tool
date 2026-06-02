@@ -318,11 +318,14 @@ export async function deleteContact(id: string): Promise<void> {
   });
 }
 
-export async function importContacts(file: File, category?: string): Promise<ContactsImportResult> {
+export async function importContacts(file: File, category?: string, importName?: string): Promise<ContactsImportResult> {
   const formData = new FormData();
   formData.append('file', file);
   if (category) {
     formData.append('category', category);
+  }
+  if (importName) {
+    formData.append('importName', importName);
   }
 
   const payload = await apiRequest<unknown, FormData>({
@@ -384,6 +387,7 @@ export async function importContacts(file: File, category?: string): Promise<Con
     skipped: getNumber(record, ['skipped']) ?? 0,
     invalid: getNumber(record, ['invalid']) ?? 0,
     total: getNumber(record, ['total']) ?? 0,
+    importId: getString(record, ['importId']),
     message: getString(record, ['message']) ?? 'Import completed.',
     invalidRows,
     skippedRows,
@@ -474,4 +478,46 @@ export async function checkContactsDuplicates(emails: string[]): Promise<string[
   });
 
   return Array.isArray(payload) ? (payload as string[]) : [];
+}
+
+export interface ImportHistoryItem {
+  id: string;
+  importName: string;
+  fileName: string;
+  total: number;
+  created: number;
+  skipped: number;
+  invalid: number;
+  category: string;
+  createdAt: string;
+}
+
+export async function getImportHistory(): Promise<ImportHistoryItem[]> {
+  const payload = await apiRequest<unknown>({
+    method: 'GET',
+    url: '/contacts/import-history',
+  });
+
+  const record = getRecord(payload);
+  if (!record || !Array.isArray(record.items)) {
+    return [];
+  }
+
+  return record.items
+    .map((item: unknown) => {
+      const entry = getRecord(item);
+      if (!entry) return null;
+      return {
+        id: getString(entry, ['id', '_id']) ?? '',
+        importName: getString(entry, ['importName']) ?? '',
+        fileName: getString(entry, ['fileName']) ?? '',
+        total: getNumber(entry, ['total']) ?? 0,
+        created: getNumber(entry, ['created']) ?? 0,
+        skipped: getNumber(entry, ['skipped']) ?? 0,
+        invalid: getNumber(entry, ['invalid']) ?? 0,
+        category: getString(entry, ['category']) ?? '',
+        createdAt: getString(entry, ['createdAt']) ?? new Date().toISOString(),
+      };
+    })
+    .filter((item): item is ImportHistoryItem => item !== null);
 }

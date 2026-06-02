@@ -1,6 +1,6 @@
 'use client';
 
-import { Columns3, Loader2, Plus, Trash2 } from 'lucide-react';
+import { Columns3, History, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -16,6 +16,7 @@ import {
   type ContactsTableColumn,
 } from '@/components/contacts/contacts-table';
 import { CsvImportCard } from '@/components/contacts/csv-import-card';
+import { ImportHistoryDialog } from '@/components/contacts/import-history-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -149,6 +150,7 @@ export default function ContactsPage() {
   const [discoveredCustomFieldKeys, setDiscoveredCustomFieldKeys] = useState<string[]>([]);
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({});
   const [hasHydratedColumnVisibility, setHasHydratedColumnVisibility] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   useEffect(() => {
     const fieldKeys = new Set<string>();
@@ -609,6 +611,10 @@ export default function ContactsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => setIsHistoryOpen(true)} className="gap-1.5">
+            <History className="h-4 w-4" />
+            History
+          </Button>
           <Button variant="outline" onClick={() => setIsAllCategoriesModalOpen(true)}>
             All Categories
           </Button>
@@ -886,6 +892,7 @@ export default function ContactsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ImportHistoryDialog open={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
     </section>
   );
 }

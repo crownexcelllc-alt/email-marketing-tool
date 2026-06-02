@@ -13,4 +13,9 @@ export class ImportContactsDto {
   @IsOptional()
   @IsString()
   readonly category?: string;
+
+  /** User-provided name for this import batch (used as a label on contacts and saved to history). */
+  @IsOptional()
+  @IsString()
+  readonly importName?: string;
 }

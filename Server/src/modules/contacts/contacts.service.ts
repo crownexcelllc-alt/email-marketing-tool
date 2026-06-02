@@ -20,10 +20,12 @@ import { ImportContactsDto } from './dto/import-contacts.dto';
 import { ListContactsDto } from './dto/list-contacts.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
 import { Contact, ContactDocument } from './schemas/contact.schema';
+import { ContactImportHistory } from './schemas/contact-import-history.schema';
 import { ContactsImportJobService } from './contacts-import-job.service';
 import { ContactsImportService, ParsedContactCsvRow } from './contacts-import.service';
 import {
   ContactCategorySummaryResponse,
+  ContactImportHistoryListResponse,
   ContactImportResultResponse,
   ContactListResponse,
   ContactResponse,
@@ -53,6 +55,8 @@ export class ContactsService {
   constructor(
     @InjectModel(Contact.name)
     private readonly contactModel: Model<Contact>,
+    @InjectModel(ContactImportHistory.name)
+    private readonly contactImportHistoryModel: Model<ContactImportHistory>,
     private readonly workspacesService: WorkspacesService,
     private readonly contactsImportService: ContactsImportService,
     private readonly contactsImportJobService: ContactsImportJobService,
@@ -749,13 +753,86 @@ export class ContactsService {
       }
     }
 
+    // Determine the import batch name: user-provided or fall back to file name
+    const importName = (dto.importName ?? '').trim() || file.originalname;
+    const importNameLabel = importName.toLowerCase();
+
+    // If an importName was given, add it as a label to every contact we just inserted
+    // so the user can filter / campaign target by it later
+    if (bulkOps.length > 0 && created > 0) {
+      const insertedEmails = bulkOps
+        .map((op: any) => op.insertOne?.document?.emailNormalized)
+        .filter(Boolean) as string[];
+
+      if (insertedEmails.length > 0) {
+        await this.contactModel
+          .updateMany(
+            {
+              workspaceId: this.toObjectId(workspaceId),
+              emailNormalized: { $in: insertedEmails },
+            },
+            {
+              $addToSet: {
+                labels: importNameLabel,
+                tags: importNameLabel,
+              },
+            },
+          )
+          .exec();
+      }
+    }
+
+    // Save import history record
+    let importId: string | undefined;
+    try {
+      const historyRecord = await this.contactImportHistoryModel.create({
+        workspaceId: this.toObjectId(workspaceId),
+        importName,
+        fileName: file.originalname,
+        total: parsed.total,
+        created,
+        skipped,
+        invalid,
+        category: dto.category ?? '',
+      });
+      importId = historyRecord._id.toString();
+    } catch {
+      // Non-fatal: history persistence failure should not break the import response
+    }
+
     return {
       created,
       skipped,
       invalid,
       total: parsed.total,
+      importId,
       invalidRows,
       skippedRows,
+    };
+  }
+
+  async getImportHistory(authUser: AuthUser): Promise<ContactImportHistoryListResponse> {
+    const workspaceId = await this.resolveWorkspaceId(authUser);
+
+    const records = await this.contactImportHistoryModel
+      .find({ workspaceId: this.toObjectId(workspaceId) })
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean()
+      .exec();
+
+    return {
+      items: records.map((r) => ({
+        id: (r._id as Types.ObjectId).toString(),
+        importName: r.importName,
+        fileName: r.fileName,
+        total: r.total,
+        created: r.created,
+        skipped: r.skipped,
+        invalid: r.invalid,
+        category: r.category,
+        createdAt: r.createdAt as Date,
+      })),
     };
   }
 

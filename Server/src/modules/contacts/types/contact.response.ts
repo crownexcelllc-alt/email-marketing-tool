@@ -43,6 +43,8 @@ export interface ContactImportResultResponse {
   skipped: number;
   invalid: number;
   total: number;
+  /** ID of the saved import history record */
+  importId?: string;
   queuedJob?: {
     id: string;
     status: 'queued';
@@ -62,6 +64,22 @@ export interface ContactImportResultResponse {
   }>;
 }
 
+export interface ContactImportHistoryResponse {
+  id: string;
+  importName: string;
+  fileName: string;
+  total: number;
+  created: number;
+  skipped: number;
+  invalid: number;
+  category: string;
+  createdAt: Date;
+}
+
+export interface ContactImportHistoryListResponse {
+  items: ContactImportHistoryResponse[];
+}
+
 export interface ContactCategorySummaryItemResponse {
   category: string;
   count: number;
@@ -71,3 +89,4 @@ export interface ContactCategorySummaryResponse {
   total: number;
   categories: ContactCategorySummaryItemResponse[];
 }
+
