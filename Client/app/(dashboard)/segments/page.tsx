@@ -16,6 +16,9 @@ import {
   RefreshCw,
   RotateCw,
   Send,
+  ShieldAlert,
+  ChevronDown,
+  ChevronUp,
   Tag,
   Users,
   XCircle,
@@ -32,6 +35,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { getCampaigns, duplicateCampaign, pauseCampaign, resumeCampaign, resendRemainingCampaign } from '@/lib/api/campaigns';
 import { getTemplates } from '@/lib/api/templates';
 import { HttpClientError } from '@/lib/api/errors';
+import { getWorkspaceSettings } from '@/lib/api/settings';
+import type { WorkspaceSettings } from '@/lib/types/settings';
 import type { Campaign } from '@/lib/types/campaign';
 import type { MarketingTemplate } from '@/lib/types/template';
 
@@ -599,13 +604,16 @@ export default function SegmentsPage() {
   const [historyCampaign, setHistoryCampaign] = useState<Campaign | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isLimitInfoOpen, setIsLimitInfoOpen] = useState(false);
+  const [showLimitDetails, setShowLimitDetails] = useState(false);
+  const [settings, setSettings] = useState<WorkspaceSettings | null>(null);
 
   const load = useCallback(async (pageNum: number, isSilent = false) => {
     if (!isSilent) setLoading(true);
     try {
-      const [campaignsRes, templatesRes] = await Promise.allSettled([
+      const [campaignsRes, templatesRes, settingsRes] = await Promise.allSettled([
         getCampaigns({ page: pageNum, limit: 10 }),
         getTemplates({ page: 1, limit: 100 }),
+        getWorkspaceSettings(),
       ]);
 
       if (campaignsRes.status === 'fulfilled') {
@@ -621,6 +629,10 @@ export default function SegmentsPage() {
         const map = new Map<string, MarketingTemplate>();
         for (const t of templatesRes.value.items) map.set(t.id, t);
         setTemplateMap(map);
+      }
+
+      if (settingsRes.status === 'fulfilled') {
+        setSettings(settingsRes.value);
       }
     } finally {
       if (!isSilent) setLoading(false);
@@ -709,27 +721,185 @@ export default function SegmentsPage() {
 
       {/* Summary bar */}
       {!loading && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm text-zinc-600">
-          <div className="flex flex-wrap items-center gap-2">
-            <BarChart2 className="h-4 w-4 shrink-0 text-zinc-400" />
-            <span>
-              <strong className="text-zinc-800">{total}</strong> campaign
-              {total !== 1 ? 's' : ''} in history
-            </span>
-            <span className="text-zinc-300">•</span>
-            <span className="text-xs text-zinc-400">
-              Templates always reflect their latest edited version
-            </span>
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm text-zinc-600">
+            <div className="flex flex-wrap items-center gap-2">
+              <BarChart2 className="h-4 w-4 shrink-0 text-zinc-400" />
+              <span>
+                <strong className="text-zinc-800">{total}</strong> campaign{total !== 1 ? 's' : ''} in history
+              </span>
+              <span className="text-zinc-300">•</span>
+              <span className="text-xs text-zinc-400">
+                {"Templates always reflect their latest edited version"}
+              </span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 h-7 text-xs border-zinc-200 bg-white text-zinc-700 hover:text-zinc-900 shrink-0"
+              onClick={() => setIsLimitInfoOpen(true)}
+            >
+              <HelpCircle className="h-3.5 w-3.5" />
+              Sending Limit Info
+            </Button>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 h-7 text-xs border-zinc-200 bg-white text-zinc-700 hover:text-zinc-900 shrink-0"
-            onClick={() => setIsLimitInfoOpen(true)}
-          >
-            <HelpCircle className="h-3.5 w-3.5" />
-            Sending Limit Info
-          </Button>
+
+          {/* Quick Safe Limits Note */}
+          {(() => {
+            const emailLimits = settings?.sendingLimits?.email;
+            const activeDailyLimit = emailLimits?.dailyLimit ?? settings?.sendingLimits?.dailyLimit ?? 275;
+            const activeHourlyLimit = emailLimits?.hourlyLimit ?? settings?.sendingLimits?.hourlyLimit ?? 50;
+            const activeMinDelay = emailLimits?.minDelaySeconds ?? settings?.sendingLimits?.minDelaySeconds ?? 50;
+            const activeMaxDelay = emailLimits?.maxDelaySeconds ?? settings?.sendingLimits?.maxDelaySeconds ?? 80;
+
+            const isDailyDefault = activeDailyLimit === 275;
+            const isHourlyDefault = activeHourlyLimit === 50;
+            const isDelayDefault = activeMinDelay === 50 && activeMaxDelay === 80;
+
+            return (
+              <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 overflow-hidden">
+                <button
+                  onClick={() => setShowLimitDetails(!showLimitDetails)}
+                  className="w-full flex items-center justify-between p-4 text-xs font-semibold text-emerald-900 hover:bg-emerald-100/30 transition-all text-left"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <ShieldAlert className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <span>{"Campaign Delivery Speed & Google SMTP Limits (Active Settings)"}</span>
+                    <Badge variant="outline" className="border-emerald-300 bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 text-[10px]">
+                      {"Note"}
+                    </Badge>
+                  </div>
+                  {showLimitDetails ? (
+                    <ChevronUp className="h-4 w-4 text-emerald-700 shrink-0" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-emerald-700 shrink-0" />
+                  )}
+                </button>
+                
+                {showLimitDetails && (
+                  <div className="px-4 pb-4 text-xs text-emerald-800 space-y-2 border-t border-emerald-100/50 pt-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-zinc-700 py-2 border-b border-emerald-100/50">
+                      <div>
+                        <span className="text-zinc-500 block">{"Safe Daily Limit:"}</span>
+                        <strong className="text-zinc-800">
+                          {`${activeDailyLimit} emails / day ${isDailyDefault ? "(Default)" : "(Custom)"}`}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-zinc-500 block">{"Safe Hourly Speed:"}</span>
+                        <strong className="text-zinc-800">
+                          {`${activeHourlyLimit} emails / hour ${isHourlyDefault ? "(Default)" : "(Custom)"}`}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-zinc-500 block">{"Safe Pacing Delay:"}</span>
+                        <strong className="text-emerald-700">
+                          {`${activeMinDelay}s - ${activeMaxDelay}s delay ${isDelayDefault ? "(Default)" : "(Custom)"}`}
+                        </strong>
+                      </div>
+                    </div>
+                    {(() => {
+                      const isDefaultAll = isDailyDefault && isHourlyDefault && isDelayDefault;
+                      if (isDefaultAll) {
+                        return (
+                          <p className="leading-relaxed text-zinc-600">
+                            <strong>{"Why we use these limits: "}</strong> 
+                            {"Google's SMTP servers automatically flag accounts as spam or reject messages if emails are sent in rapid bursts or trigger high bounce rates. These safe defaults prevent your sender accounts from suspension. "}
+                            <strong>{"How to increase / restore limits: "}</strong>
+                            {"Ensure your domain has SPF/DKIM/DMARC authenticated, keep your list bounce rate below 2%, and warm up new accounts slowly. If your capacity is reduced by Google, stop campaigns for 24-48 hours and send manual emails that get replies to signal organic usage."}
+                          </p>
+                        );
+                      }
+
+                      // Dynamic explanations based on custom limits
+                      let dailyFeedback = "";
+                      let dailyRisk = false;
+                      if (activeDailyLimit > 2000) {
+                        dailyFeedback = `⚠️ Critical Limit Risk: Your daily limit (${activeDailyLimit}) exceeds Google Workspace's hard cap of 2,000 emails/day, which will trigger immediate delivery rejections and account suspension.`;
+                        dailyRisk = true;
+                      } else if (activeDailyLimit > 500) {
+                        dailyFeedback = `⚠️ High Volume Risk: Your limit (${activeDailyLimit}) is above the free Gmail threshold (500/day). You must use paid Google Workspace accounts, and warm them up slowly to avoid spam flags.`;
+                        dailyRisk = true;
+                      } else if (activeDailyLimit > 275) {
+                        dailyFeedback = `⚠️ Moderate Volume Risk: Your limit (${activeDailyLimit}) is higher than the safe default limit of 275/day. Ensure your domain has established sender reputation before running campaigns.`;
+                        dailyRisk = true;
+                      } else {
+                        dailyFeedback = `✓ Safe Daily Volume: Your limit of ${activeDailyLimit} emails/day is safe and conservative.`;
+                      }
+
+                      let hourlyFeedback = "";
+                      let hourlyRisk = false;
+                      if (activeHourlyLimit > 100) {
+                        hourlyFeedback = `⚠️ High Hourly Speed: Sending ${activeHourlyLimit} emails/hour is too fast. Google's burst filters will likely trigger SMTP code 421 (throttling) or mark incoming messages as spam.`;
+                        hourlyRisk = true;
+                      } else if (activeHourlyLimit > 50) {
+                        hourlyFeedback = `⚠️ Moderate Hourly Speed: Your speed of ${activeHourlyLimit}/hour is above the safe default limit of 50. Emails may be throttled or put in spam if sent too rapidly.`;
+                        hourlyRisk = true;
+                      } else {
+                        hourlyFeedback = `✓ Safe Hourly Speed: Your speed of ${activeHourlyLimit}/hour is safe and mimics natural human pacing.`;
+                      }
+
+                      let delayFeedback = "";
+                      let delayRisk = false;
+                      if (activeMinDelay < 30) {
+                        delayFeedback = `⚠️ Critical Delay Risk: Pacing delay of ${activeMinDelay}s-${activeMaxDelay}s is extremely fast. Delays under 30 seconds mimic automated bot behavior and trigger quick SMTP blocks.`;
+                        delayRisk = true;
+                      } else if (activeMinDelay < 50) {
+                        delayFeedback = `⚠️ Moderate Delay Risk: Pacing delay of ${activeMinDelay}s-${activeMaxDelay}s is slightly fast. We recommend keeping it at least 50 seconds to avoid velocity filter flags.`;
+                        delayRisk = true;
+                      } else {
+                        delayFeedback = `✓ Safe Delay Pacing: Your delay of ${activeMinDelay}s-${activeMaxDelay}s is wide enough to mimic organic sending.`;
+                      }
+
+                      return (
+                        <div className="leading-relaxed text-zinc-600 space-y-3 text-left">
+                          <div className="text-amber-800 font-semibold flex items-center gap-1.5 pt-0.5">
+                            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                            <span>{"You have set Custom Limits"}</span>
+                          </div>
+                          
+                          <p className="text-xs text-zinc-600">
+                            {"You are currently using custom limits instead of the recommended safe defaults. Google's SMTP servers automatically flag spam patterns and suspend accounts if custom parameters are set too aggressively. Here is how your current settings can affect your delivery:"}
+                          </p>
+
+                          <div className="space-y-2.5 bg-zinc-50 p-3 rounded-lg border border-zinc-200">
+                            <div className="text-xs">
+                              <strong className="text-zinc-800 font-semibold">{"Daily Limit Analysis:"}</strong>
+                              <span className={`block mt-0.5 ${dailyRisk ? "text-amber-700 font-medium" : "text-emerald-700"}`}>
+                                {dailyFeedback}
+                              </span>
+                            </div>
+                            <div className="border-t border-zinc-200/60 pt-2 text-xs">
+                              <strong className="text-zinc-800 font-semibold">{"Hourly Speed Analysis:"}</strong>
+                              <span className={`block mt-0.5 ${hourlyRisk ? "text-amber-700 font-medium" : "text-emerald-700"}`}>
+                                {hourlyFeedback}
+                              </span>
+                            </div>
+                            <div className="border-t border-zinc-200/60 pt-2 text-xs">
+                              <strong className="text-zinc-800 font-semibold">{"Pacing Delay Analysis:"}</strong>
+                              <span className={`block mt-0.5 ${delayRisk ? "text-amber-700 font-medium" : "text-emerald-700"}`}>
+                                {delayFeedback}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="bg-red-50 text-red-800 p-3 rounded-lg border border-red-100 text-xs space-y-1.5">
+                            <strong className="font-semibold block text-red-950">{"Google's Throttling & Spam Safeguards:"}</strong>
+                            <p>
+                              {"If Google's servers reject your emails or flag your account as spam under these custom limits, you should immediately revert back to the safe defaults (275 daily limit, 50 hourly limit, 50s-80s pacing delay)."}
+                            </p>
+                            <p className="font-semibold text-red-900">
+                              {"To restore/increase your capacity: (1) Stop campaigns for 24-48 hours. (2) Send manual emails to personal contacts and get replies. (3) Ensure SPF/DKIM/DMARC are properly authenticated. (4) Keep list bounce rate strictly below 2%."}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
