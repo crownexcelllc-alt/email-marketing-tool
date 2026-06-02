@@ -11,6 +11,8 @@ import { TrackingSettingsForm } from '@/components/settings/tracking-settings-fo
 import { WhatsAppSettingsForm } from '@/components/settings/whatsapp-settings-form';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { HelpCircle } from 'lucide-react';
+import { SendingLimitInfoDialog } from '@/components/campaigns/sending-limit-info-dialog';
 import { HttpClientError } from '@/lib/api/errors';
 import {
   getDefaultWorkspaceSettings,
@@ -81,6 +83,7 @@ export function SettingsDashboard() {
   const [settings, setSettings] = useState<WorkspaceSettings>(getDefaultWorkspaceSettings());
   const [isLoading, setIsLoading] = useState(true);
   const [savingSection, setSavingSection] = useState<SettingsSectionKey | null>(null);
+  const [isLimitInfoOpen, setIsLimitInfoOpen] = useState(false);
   const authUser = useAuthStore((state) => state.user);
 
   const loadSettings = useCallback(async () => {
@@ -234,12 +237,27 @@ export function SettingsDashboard() {
       <SettingsTabs activeTab={activeTab} onChange={setActiveTab} />
 
       <Card className="border-zinc-800 bg-zinc-900/60 text-zinc-100">
-        <CardHeader>
-          <CardTitle className="text-base">{tabMeta.title}</CardTitle>
-          <p className="text-sm text-zinc-400">{tabMeta.description}</p>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div className="space-y-1">
+            <CardTitle className="text-base">{tabMeta.title}</CardTitle>
+            <p className="text-sm text-zinc-400">{tabMeta.description}</p>
+          </div>
+          {activeTab === 'sendingLimits' && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-zinc-700 bg-zinc-800 text-zinc-200 hover:bg-zinc-700 shrink-0"
+              onClick={() => setIsLimitInfoOpen(true)}
+            >
+              <HelpCircle className="h-3.5 w-3.5" />
+              Sending Limit Info
+            </Button>
+          )}
         </CardHeader>
         <CardContent>{tabContent}</CardContent>
       </Card>
+      <SendingLimitInfoDialog open={isLimitInfoOpen} onOpenChange={setIsLimitInfoOpen} />
     </section>
   );
 }

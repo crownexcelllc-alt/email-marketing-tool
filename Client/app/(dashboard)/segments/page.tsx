@@ -756,28 +756,81 @@ export default function SegmentsPage() {
             const isHourlyDefault = activeHourlyLimit === 50;
             const isDelayDefault = activeMinDelay === 50 && activeMaxDelay === 80;
 
+            // Determine risk properties
+            let riskLevel: 'safe' | 'moderate' | 'high' | 'critical' = 'safe';
+            if (activeDailyLimit > 2000 || activeMinDelay < 30) {
+              riskLevel = 'critical';
+            } else if (activeDailyLimit > 500 || activeHourlyLimit > 100) {
+              riskLevel = 'high';
+            } else if (activeDailyLimit > 275 || activeHourlyLimit > 50 || activeMinDelay < 50) {
+              riskLevel = 'moderate';
+            }
+
+            const config = {
+              critical: {
+                border: 'border-rose-200',
+                bg: 'bg-rose-50/50',
+                text: 'text-rose-950',
+                btnHover: 'hover:bg-rose-100/30',
+                badge: 'border-rose-300 bg-rose-100 text-rose-800',
+                chevron: 'text-rose-700',
+                iconColor: 'text-rose-600',
+                labelText: '💀 CRITICAL RISK',
+              },
+              high: {
+                border: 'border-red-200',
+                bg: 'bg-red-50/50',
+                text: 'text-red-950',
+                btnHover: 'hover:bg-red-100/30',
+                badge: 'border-red-300 bg-red-100 text-red-800',
+                chevron: 'text-red-700',
+                iconColor: 'text-red-600',
+                labelText: '🔥 HIGH RISK',
+              },
+              moderate: {
+                border: 'border-amber-200',
+                bg: 'bg-amber-50/50',
+                text: 'text-amber-950',
+                btnHover: 'hover:bg-amber-100/30',
+                badge: 'border-amber-300 bg-amber-100 text-amber-800',
+                chevron: 'text-amber-700',
+                iconColor: 'text-amber-600',
+                labelText: '⚠️ MODERATE RISK',
+              },
+              safe: {
+                border: 'border-emerald-200',
+                bg: 'bg-emerald-50/50',
+                text: 'text-emerald-950',
+                btnHover: 'hover:bg-emerald-100/30',
+                badge: 'border-emerald-300 bg-emerald-100 text-emerald-800',
+                chevron: 'text-emerald-700',
+                iconColor: 'text-emerald-600',
+                labelText: '✓ SAFE SETTINGS',
+              },
+            }[riskLevel];
+
             return (
-              <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 overflow-hidden">
+              <div className={`rounded-lg border ${config.border} ${config.bg} overflow-hidden transition-all duration-300`}>
                 <button
                   onClick={() => setShowLimitDetails(!showLimitDetails)}
-                  className="w-full flex items-center justify-between p-4 text-xs font-semibold text-emerald-900 hover:bg-emerald-100/30 transition-all text-left"
+                  className={`w-full flex items-center justify-between p-4 text-xs font-semibold ${config.text} ${config.btnHover} transition-all text-left`}
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <ShieldAlert className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <ShieldAlert className={`h-4 w-4 ${config.iconColor} shrink-0`} />
                     <span>{"Campaign Delivery Speed & Google SMTP Limits (Active Settings)"}</span>
-                    <Badge variant="outline" className="border-emerald-300 bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 text-[10px]">
-                      {"Note"}
+                    <Badge variant="outline" className={`border ${config.badge} font-semibold px-2 py-0.5 text-[10px]`}>
+                      {config.labelText}
                     </Badge>
                   </div>
                   {showLimitDetails ? (
-                    <ChevronUp className="h-4 w-4 text-emerald-700 shrink-0" />
+                    <ChevronUp className={`h-4 w-4 ${config.chevron} shrink-0`} />
                   ) : (
-                    <ChevronDown className="h-4 w-4 text-emerald-700 shrink-0" />
+                    <ChevronDown className={`h-4 w-4 ${config.chevron} shrink-0`} />
                   )}
                 </button>
                 
                 {showLimitDetails && (
-                  <div className="px-4 pb-4 text-xs text-emerald-800 space-y-2 border-t border-emerald-100/50 pt-3">
+                  <div className={`px-4 pb-4 text-xs ${config.text} space-y-2 border-t ${config.border}/50 pt-3`}>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-zinc-700 py-2 border-b border-emerald-100/50">
                       <div>
                         <span className="text-zinc-500 block">{"Safe Daily Limit:"}</span>
@@ -849,6 +902,44 @@ export default function SegmentsPage() {
                         delayRisk = true;
                       } else {
                         delayFeedback = `✓ Safe Delay Pacing: Your delay of ${activeMinDelay}s-${activeMaxDelay}s is wide enough to mimic organic sending.`;
+                      }
+
+                      const isCustomSafe = activeDailyLimit <= 275 && activeHourlyLimit <= 50 && activeMinDelay >= 50;
+
+                      if (isCustomSafe) {
+                        return (
+                          <div className="leading-relaxed text-zinc-600 space-y-3 text-left">
+                            <div className="text-emerald-800 font-semibold flex items-center gap-1.5 pt-0.5">
+                              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                              <span>{"Custom Limits Set Safely"}</span>
+                            </div>
+                            
+                            <p className="text-xs text-zinc-600">
+                              {"Your custom limits are set within the recommended safe guidelines. This is a very conservative and secure setup that will protect your sender accounts from suspension."}
+                            </p>
+
+                            <div className="space-y-2.5 bg-zinc-50 p-3 rounded-lg border border-zinc-200">
+                              <div className="text-xs">
+                                <strong className="text-zinc-800 font-semibold">{"Daily Limit Analysis:"}</strong>
+                                <span className="block mt-0.5 text-emerald-700 font-medium">
+                                  {dailyFeedback}
+                                </span>
+                              </div>
+                              <div className="border-t border-zinc-200/60 pt-2 text-xs">
+                                <strong className="text-zinc-800 font-semibold">{"Hourly Speed Analysis:"}</strong>
+                                <span className="block mt-0.5 text-emerald-700 font-medium">
+                                  {hourlyFeedback}
+                                </span>
+                              </div>
+                              <div className="border-t border-zinc-200/60 pt-2 text-xs">
+                                <strong className="text-zinc-800 font-semibold">{"Pacing Delay Analysis:"}</strong>
+                                <span className="block mt-0.5 text-emerald-700 font-medium">
+                                  {delayFeedback}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
                       }
 
                       return (
