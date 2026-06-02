@@ -91,7 +91,56 @@ export function SendingLimitInfoDialog({ open, onOpenChange }: SendingLimitInfoD
           </ul>
         </div>
 
-        {/* 3. Pacing & Rolling Window Grid (Bottom) */}
+        {/* 3. How to Increase & Restore Your Sending Limits */}
+        <div className="rounded-xl border border-zinc-200 bg-[#f3f4f6] p-5 space-y-3 text-black mb-6">
+          <h4 className="text-sm font-semibold text-black flex items-center gap-2">
+            <Sparkles className="h-4.5 w-4.5 text-emerald-600 shrink-0" />
+            How to Increase & Restore Your Sending Limits (Beginner Guide)
+          </h4>
+          <p className="text-xs text-zinc-800 leading-relaxed">
+            If Google has lowered your limits or you want to safely scale up to reach the maximum 2,000/day limit, follow these simple and essential steps:
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 text-xs">
+            <div className="space-y-1">
+              <strong className="text-zinc-900 block font-semibold">1. Authenticate Your Domain (SPF, DKIM, DMARC)</strong>
+              <span className="text-zinc-700 leading-relaxed block">
+                Go to your domain registrar (like GoDaddy or Namecheap) and add SPF, DKIM, and DMARC records. This tells Google that you are a verified owner and not a spammer.
+              </span>
+            </div>
+            <div className="space-y-1">
+              <strong className="text-zinc-900 block font-semibold">2. Warm Up Your Email Account Slowly</strong>
+              <span className="text-zinc-700 leading-relaxed block">
+                Do not send hundreds of emails on day one. Start by sending 10-20 emails per day and gradually increase by 10-15% each day. This slowly builds a trust score with Google.
+              </span>
+            </div>
+            <div className="space-y-1">
+              <strong className="text-zinc-900 block font-semibold">3. Upgrade to Paid Google Workspace</strong>
+              <span className="text-zinc-700 leading-relaxed block">
+                Free <code>@gmail.com</code> accounts are strictly capped at 500/day. Upgrading to a paid Google Workspace account (e.g. <code>name@yourcompany.com</code>) increases your max potential limit to 2,000/day.
+              </span>
+            </div>
+            <div className="space-y-1">
+              <strong className="text-zinc-900 block font-semibold">4. How to Restore Restrictive Limits</strong>
+              <span className="text-zinc-700 leading-relaxed block">
+                If Google restricted your capacity, stop sending campaigns for 24-48 hours. Send 5-10 manual emails to friends or colleagues and ask them to reply. Genuine replies tell Google your account is authentic.
+              </span>
+            </div>
+            <div className="space-y-1">
+              <strong className="text-zinc-900 block font-semibold">5. Keep Bounces & Complaints Very Low</strong>
+              <span className="text-zinc-700 leading-relaxed block">
+                Always verify and clean your contact list to keep bounce rates below 2%. Include a clear unsubscribe link so recipients can opt out without marking your emails as spam.
+              </span>
+            </div>
+            <div className="space-y-1">
+              <strong className="text-zinc-900 block font-semibold">6. Personalize Every Message</strong>
+              <span className="text-zinc-700 leading-relaxed block">
+                {"Use variables like "}<code>{"{{firstName}}"}</code>{" or company name. Sending identical copy-paste templates to thousands of users triggers Google's automatic spam filters."}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* 4. Pacing & Rolling Window Grid (Bottom) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           
           {/* Box 1: Dynamic Rolling Window */}
