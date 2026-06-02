@@ -1,13 +1,13 @@
 'use client';
 
-import { 
-  HelpCircle, 
-  ShieldAlert, 
-  Clock, 
-  Gauge, 
-  Sparkles, 
-  UserCheck, 
-  AlertTriangle 
+import {
+  HelpCircle,
+  ShieldAlert,
+  Clock,
+  Gauge,
+  Sparkles,
+  UserCheck,
+  AlertTriangle
 } from 'lucide-react';
 import {
   Dialog,
@@ -77,7 +77,7 @@ export function SendingLimitInfoDialog({ open, onOpenChange }: SendingLimitInfoD
               Google's maximum limits of <strong>500 (free Gmail)</strong> and <strong>2,000 (Google Workspace)</strong> are not guaranteed. Google has an automated AI system that monitors your account activity. If it detects suspicious patterns, it will instantly reduce your limit to protect other users. Here is what triggers Google to lower your capacity:
             </p>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
             <div className="p-4 bg-white rounded-lg border border-red-100 space-y-2 flex flex-col justify-between">
               <div>
@@ -90,7 +90,7 @@ export function SendingLimitInfoDialog({ open, onOpenChange }: SendingLimitInfoD
                 Rule: Start with 20–30 emails/day and increase slowly.
               </span>
             </div>
-            
+
             <div className="p-4 bg-white rounded-lg border border-red-100 space-y-2 flex flex-col justify-between">
               <div>
                 <span className="font-bold text-zinc-900 block mb-1">2. Sending to Fake/Dead Emails (Bounces)</span>
@@ -140,9 +140,9 @@ export function SendingLimitInfoDialog({ open, onOpenChange }: SendingLimitInfoD
               If your sending limit has been dropped, or you want to safely reach the maximum 2,000 emails/day limit, follow these steps. This builds a permanent high trust score with Google's systems:
             </p>
           </div>
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            
+
             <div className="p-4 bg-white rounded-lg border border-emerald-100 space-y-1.5 shadow-sm">
               <div className="flex items-center gap-1.5">
                 <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">1</span>
@@ -208,7 +208,7 @@ export function SendingLimitInfoDialog({ open, onOpenChange }: SendingLimitInfoD
 
         {/* 4. Pacing & Rolling Window Grid (Bottom) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          
+
           {/* Box 1: Dynamic Rolling Window */}
           <div className="rounded-xl border border-zinc-200 bg-[#f3f4f6] p-5 space-y-2 text-black shadow-sm">
             <h4 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
