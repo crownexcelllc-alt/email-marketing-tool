@@ -17,6 +17,10 @@ import { TrackingModule } from '../tracking/tracking.module';
 import { EmailController } from './email.controller';
 import { SendEvent, SendEventSchema } from './schemas/send-event.schema';
 import { EmailService } from './email.service';
+import {
+  WorkspaceSettings,
+  WorkspaceSettingsSchema,
+} from '../settings/schemas/workspace-settings.schema';
 
 @Module({
   imports: [
@@ -30,6 +34,7 @@ import { EmailService } from './email.service';
       { name: Template.name, schema: TemplateSchema },
       { name: Contact.name, schema: ContactSchema },
       { name: SendEvent.name, schema: SendEventSchema },
+      { name: WorkspaceSettings.name, schema: WorkspaceSettingsSchema },
     ]),
   ],
   controllers: [EmailController],

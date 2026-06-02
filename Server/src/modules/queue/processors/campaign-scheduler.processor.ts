@@ -250,6 +250,9 @@ export class CampaignSchedulerProcessor extends WorkerHost {
     }
 
     let accumulatedDelayMs = 0;
+    let currentBatchSize = Math.floor(10 + Math.random() * 11); // Random integer between 10 and 20 (inclusive)
+    let processedInCurrentBatch = 0;
+
     const enqueueResults = await Promise.all(
       distribution.assignments.map((assignment, index) => {
         const recipient = recipientByContactId.get(assignment.contactId);
@@ -271,6 +274,16 @@ export class CampaignSchedulerProcessor extends WorkerHost {
         const delay = index === 0 ? 0 : accumulatedDelayMs;
         const randomDelaySeconds = minDelay + Math.random() * (maxDelay - minDelay);
         accumulatedDelayMs += Math.round(randomDelaySeconds * 1000);
+
+        processedInCurrentBatch++;
+        if (processedInCurrentBatch >= currentBatchSize && index < distribution.assignments.length - 1) {
+          // Extra randomized batch cooldown delay (90-180 seconds)
+          const batchCooldownSeconds = 90 + Math.random() * 90;
+          accumulatedDelayMs += Math.round(batchCooldownSeconds * 1000);
+
+          processedInCurrentBatch = 0;
+          currentBatchSize = Math.floor(10 + Math.random() * 11);
+        }
 
         if (campaign.channel === 'email') {
           return this.queueService.enqueueEmailSend(payloadBase, { delay });
@@ -332,7 +345,9 @@ export class CampaignSchedulerProcessor extends WorkerHost {
 
     const isLimitPaused =
       campaign.stopReason === CAMPAIGN_STOP_REASON_DAILY_LIMIT ||
-      campaign.stopReason === legacyLimitStopReason;
+      campaign.stopReason === legacyLimitStopReason ||
+      campaign.stopReason === 'hourly sending limit reached' ||
+      campaign.stopReason === 'circuit breaker triggered';
     if (!isLimitPaused) {
       return null;
     }
@@ -364,7 +379,12 @@ export class CampaignSchedulerProcessor extends WorkerHost {
           _id: campaign._id,
           status: CampaignStatus.PAUSED,
           stopReason: {
-            $in: [CAMPAIGN_STOP_REASON_DAILY_LIMIT, legacyLimitStopReason],
+            $in: [
+              CAMPAIGN_STOP_REASON_DAILY_LIMIT,
+              legacyLimitStopReason,
+              'hourly sending limit reached',
+              'circuit breaker triggered',
+            ],
           },
         },
         {

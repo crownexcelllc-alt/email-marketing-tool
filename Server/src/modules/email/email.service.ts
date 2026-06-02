@@ -38,6 +38,7 @@ import {
   renderEmailTemplateWithContact,
 } from './email-template.utils';
 import { SendEvent } from './schemas/send-event.schema';
+import { WorkspaceSettings } from '../settings/schemas/workspace-settings.schema';
 
 export interface EmailSendWorkerInput {
   campaignId: string;
@@ -80,6 +81,10 @@ export class EmailService {
   private readonly limitResetDelayMs =
     Math.max(1, Number(process.env.CAMPAIGN_LIMIT_RESET_DELAY_MINUTES ?? 24 * 60)) * 60 * 1000;
 
+  private readonly transporters = new Map<string, Transporter>();
+  private readonly activeSenderLocks = new Set<string>();
+  private readonly consecutiveFailures = new Map<string, number>();
+
   constructor(
     @InjectModel(Campaign.name)
     private readonly campaignModel: Model<Campaign>,
@@ -93,6 +98,8 @@ export class EmailService {
     private readonly contactModel: Model<Contact>,
     @InjectModel(SendEvent.name)
     private readonly sendEventModel: Model<SendEvent>,
+    @InjectModel(WorkspaceSettings.name)
+    private readonly workspaceSettingsModel: Model<WorkspaceSettings>,
     private readonly senderAccountSecretsService: SenderAccountSecretsService,
     private readonly suppressionService: SuppressionService,
     private readonly trackingLinkService: TrackingLinkService,
@@ -158,267 +165,339 @@ export class EmailService {
       return { type: 'noop' };
     }
 
-    await this.recordSendEvent({
-      context,
-      eventType: EmailSendEventType.SEND_ATTEMPT,
-      attempt: ctx.attempt,
-      maxAttempts: ctx.maxAttempts,
-    });
+    const senderIdStr = context.senderAccount._id.toString();
 
-    const suppression = await this.suppressionService.checkSuppression(
-      context.workspaceId.toString(),
-      SuppressionChannel.EMAIL,
-      {
-        contactId: context.contact._id.toString(),
-        email: context.contact.email ?? null,
-      },
-    );
-
-    if (suppression.suppressed) {
-      await this.markRecipientSuppressed(context);
-      await this.recordSendEvent({
-        context,
-        eventType: EmailSendEventType.SEND_SKIPPED_SUPPRESSED,
-        failureCategory: EmailFailureCategory.PERMANENT,
-        failureCode: 'SUPPRESSED',
-        failureMessage: 'Contact is in suppression list for email',
-        attempt: ctx.attempt,
-        maxAttempts: ctx.maxAttempts,
-      });
-      return { type: 'suppressed' };
+    // 1. Concurrency Locks
+    // - In-memory lock check
+    if (this.activeSenderLocks.has(senderIdStr)) {
+      return {
+        type: 'retryable_failure',
+        message: `Concurrency lock active: Sender account ${context.senderAccount.email?.email} is busy sending (in-memory lock).`,
+      };
     }
 
-    const updateResult = await this.campaignRecipientModel
-      .updateOne(
-        {
-          _id: context.recipient._id,
-          status: { $in: [CampaignRecipientStatus.QUEUED, CampaignRecipientStatus.SENDING] },
-        },
-        {
-          $set: {
-            status: CampaignRecipientStatus.SENDING,
-            failureReason: '',
-            lastAttemptAt: new Date(),
-          },
-        },
-      )
-      .exec();
+    // - DB-level lock check
+    const thirtySecondsAgo = new Date(Date.now() - 30 * 1000);
+    const dbLockActive = await this.campaignRecipientModel.exists({
+      senderAccountId: context.senderAccount._id,
+      status: CampaignRecipientStatus.SENDING,
+      _id: { $ne: context.recipient._id },
+      lastAttemptAt: { $gt: thirtySecondsAgo },
+    }).exec();
 
-    if (updateResult.modifiedCount === 0) {
-      return { type: 'noop' };
+    if (dbLockActive) {
+      return {
+        type: 'retryable_failure',
+        message: `Concurrency lock active: Sender account ${context.senderAccount.email?.email} is busy sending (DB-level lock).`,
+      };
     }
+
+    // Acquire in-memory lock
+    this.activeSenderLocks.add(senderIdStr);
 
     try {
-      const transporter = this.createTransporter(context.senderAccount);
-      const rendered = this.renderTemplate(context);
-      const withTrackingPlaceholders = injectEmailTrackingPlaceholders({
-        html: rendered.html,
-        text: rendered.text,
-        trackOpens: context.campaign.trackOpens,
-        trackClicks: context.campaign.trackClicks,
-      });
-      const tracked = this.trackingLinkService.applyTrackingToEmailContent({
-        html: withTrackingPlaceholders.html,
-        text: withTrackingPlaceholders.text,
-        trackOpens: context.campaign.trackOpens,
-        trackClicks: context.campaign.trackClicks,
-        campaignId: context.campaign._id.toString(),
-        campaignRecipientId: context.recipient._id.toString(),
-        contactId: context.contact._id.toString(),
-        trackingBaseUrl: process.env.TRACKING_BASE_URL || context.campaign.trackingBaseUrl,
-      });
-      const trackingDiagnostics = {
-        opensEnabled: context.campaign.trackOpens,
-        clicksEnabled: context.campaign.trackClicks,
-        openPixelInjected: Boolean(
-          tracked.openPixelUrl && tracked.html.includes(tracked.openPixelUrl),
-        ),
-        trackedHtmlLinkCount: this.countTrackedLinks(tracked.html),
-        trackedTextLinkCount: this.countTrackedLinks(tracked.text),
-      };
-
-      const sendResult = await transporter.sendMail({
-        from: this.buildFromAddress(context.senderAccount),
-        to: context.contact.email as string,
-        subject: rendered.subject,
-        html: tracked.html,
-        text: tracked.text,
-        headers: {
-          'X-Campaign-Id': context.campaign._id.toString(),
-          'X-Campaign-Recipient-Id': context.recipient._id.toString(),
-          'X-Contact-Id': context.contact._id.toString(),
-          'X-Sender-Account-Id': context.senderAccount._id.toString(),
-        },
-      });
-
-      const updateSentResult = await this.campaignRecipientModel
-        .updateOne(
-          {
-            _id: context.recipient._id,
-            status: CampaignRecipientStatus.SENDING,
-          },
-          {
-            $set: {
-              status: CampaignRecipientStatus.SENT,
-              sentAt: new Date(),
-              providerMessageId: sendResult.messageId ?? null,
-              failedAt: null,
-              failureReason: '',
-            },
-          },
-        )
-        .exec();
-
-      if (updateSentResult.modifiedCount === 0) {
-        return { type: 'noop' };
-      }
-
-      await this.campaignModel
-        .updateOne(
-          { _id: context.campaign._id },
-          {
-            $inc: {
-              'stats.sentRecipients': 1,
-              'stats.queuedRecipients': -1,
-            },
-          },
-        )
-        .exec();
-
-      await this.tryMarkCampaignCompleted(context.campaign._id);
-
-      await this.recordSendEvent({
-        context,
-        eventType: EmailSendEventType.SEND_SUCCESS,
-        providerMessageId: sendResult.messageId ?? null,
-        attempt: ctx.attempt,
-        maxAttempts: ctx.maxAttempts,
-        metadata: {
-          unresolvedVariables: rendered.unresolvedVariables,
-          tracking: trackingDiagnostics,
-        },
-      });
-
-      return { type: 'success' };
-    } catch (error) {
-      const failure = classifyEmailFailure(error);
-      const isLimitError = this.isDailyLimitError(failure);
-      const retriesRemaining = ctx.attempt < ctx.maxAttempts;
-
-      if (isLimitError) {
-        const resumeAt = await this.handleDailyLimitReached(context, failure);
-
-        await this.recordSendEvent({
-          context,
-          eventType: EmailSendEventType.SEND_FAILED_TEMPORARY,
-          failureCategory: EmailFailureCategory.TEMPORARY,
-          failureCode: failure.code,
-          failureMessage: failure.message,
-          smtpResponseCode: failure.smtpResponseCode,
-          attempt: ctx.attempt,
-          maxAttempts: ctx.maxAttempts,
-          hardBounceCandidate: false,
-        });
-
-        this.logger.warn(
-          `Daily limit reached campaign=${context.campaign._id.toString()} recipient=${context.recipient._id.toString()} resumeAt=${resumeAt.toISOString()}`,
-        );
-
+      // 2. Application-Level Limit Checks
+      const limitExceeded = await this.checkLimitsAndPauseIfNeeded(context);
+      if (limitExceeded) {
         return {
           type: 'rate_limited',
-          message: `${failure.code}: ${failure.message}`,
+          message: limitExceeded.message,
           campaignId: context.campaign._id.toString(),
           workspaceId: context.workspaceId.toString(),
-          resumeAt: resumeAt.toISOString(),
+          resumeAt: limitExceeded.resumeAt.toISOString(),
         };
       }
 
-      if (failure.category === EmailFailureCategory.TEMPORARY && retriesRemaining) {
-        await this.campaignRecipientModel
+      await this.recordSendEvent({
+        context,
+        eventType: EmailSendEventType.SEND_ATTEMPT,
+        attempt: ctx.attempt,
+        maxAttempts: ctx.maxAttempts,
+      });
+
+      const suppression = await this.suppressionService.checkSuppression(
+        context.workspaceId.toString(),
+        SuppressionChannel.EMAIL,
+        {
+          contactId: context.contact._id.toString(),
+          email: context.contact.email ?? null,
+        },
+      );
+
+      if (suppression.suppressed) {
+        await this.markRecipientSuppressed(context);
+        await this.recordSendEvent({
+          context,
+          eventType: EmailSendEventType.SEND_SKIPPED_SUPPRESSED,
+          failureCategory: EmailFailureCategory.PERMANENT,
+          failureCode: 'SUPPRESSED',
+          failureMessage: 'Contact is in suppression list for email',
+          attempt: ctx.attempt,
+          maxAttempts: ctx.maxAttempts,
+        });
+        return { type: 'suppressed' };
+      }
+
+      const updateResult = await this.campaignRecipientModel
+        .updateOne(
+          {
+            _id: context.recipient._id,
+            status: { $in: [CampaignRecipientStatus.QUEUED, CampaignRecipientStatus.SENDING] },
+          },
+          {
+            $set: {
+              status: CampaignRecipientStatus.SENDING,
+              failureReason: '',
+              lastAttemptAt: new Date(),
+            },
+          },
+        )
+        .exec();
+
+      if (updateResult.modifiedCount === 0) {
+        return { type: 'noop' };
+      }
+
+      try {
+        const transporter = this.createTransporter(context.senderAccount);
+        const rendered = this.renderTemplate(context);
+        const withTrackingPlaceholders = injectEmailTrackingPlaceholders({
+          html: rendered.html,
+          text: rendered.text,
+          trackOpens: context.campaign.trackOpens,
+          trackClicks: context.campaign.trackClicks,
+        });
+        const tracked = this.trackingLinkService.applyTrackingToEmailContent({
+          html: withTrackingPlaceholders.html,
+          text: withTrackingPlaceholders.text,
+          trackOpens: context.campaign.trackOpens,
+          trackClicks: context.campaign.trackClicks,
+          campaignId: context.campaign._id.toString(),
+          campaignRecipientId: context.recipient._id.toString(),
+          contactId: context.contact._id.toString(),
+          trackingBaseUrl: process.env.TRACKING_BASE_URL || context.campaign.trackingBaseUrl,
+        });
+        const trackingDiagnostics = {
+          opensEnabled: context.campaign.trackOpens,
+          clicksEnabled: context.campaign.trackClicks,
+          openPixelInjected: Boolean(
+            tracked.openPixelUrl && tracked.html.includes(tracked.openPixelUrl),
+          ),
+          trackedHtmlLinkCount: this.countTrackedLinks(tracked.html),
+          trackedTextLinkCount: this.countTrackedLinks(tracked.text),
+        };
+
+        const sendResult = await transporter.sendMail({
+          from: this.buildFromAddress(context.senderAccount),
+          to: context.contact.email as string,
+          subject: rendered.subject,
+          html: tracked.html,
+          text: tracked.text,
+          headers: {
+            'X-Campaign-Id': context.campaign._id.toString(),
+            'X-Campaign-Recipient-Id': context.recipient._id.toString(),
+            'X-Contact-Id': context.contact._id.toString(),
+            'X-Sender-Account-Id': context.senderAccount._id.toString(),
+          },
+        });
+
+        const updateSentResult = await this.campaignRecipientModel
           .updateOne(
-            { _id: context.recipient._id },
+            {
+              _id: context.recipient._id,
+              status: CampaignRecipientStatus.SENDING,
+            },
             {
               $set: {
-                status: CampaignRecipientStatus.QUEUED,
-                providerMessageId: null,
-                failureReason: `${failure.code}: ${failure.message}`,
+                status: CampaignRecipientStatus.SENT,
+                sentAt: new Date(),
+                providerMessageId: sendResult.messageId ?? null,
                 failedAt: null,
+                failureReason: '',
               },
             },
           )
           .exec();
 
+        if (updateSentResult.modifiedCount === 0) {
+          return { type: 'noop' };
+        }
+
+        await this.campaignModel
+          .updateOne(
+            { _id: context.campaign._id },
+            {
+              $inc: {
+                'stats.sentRecipients': 1,
+                'stats.queuedRecipients': -1,
+              },
+            },
+          )
+          .exec();
+
+        await this.tryMarkCampaignCompleted(context.campaign._id);
+
         await this.recordSendEvent({
           context,
-          eventType: EmailSendEventType.SEND_RETRY_SCHEDULED,
+          eventType: EmailSendEventType.SEND_SUCCESS,
+          providerMessageId: sendResult.messageId ?? null,
+          attempt: ctx.attempt,
+          maxAttempts: ctx.maxAttempts,
+          metadata: {
+            unresolvedVariables: rendered.unresolvedVariables,
+            tracking: trackingDiagnostics,
+          },
+        });
+
+        // Reset consecutive failures on success
+        this.consecutiveFailures.set(context.campaign._id.toString(), 0);
+
+        return { type: 'success' };
+      } catch (error) {
+        const failure = classifyEmailFailure(error);
+        const isLimitError = this.isDailyLimitError(failure);
+        const retriesRemaining = ctx.attempt < ctx.maxAttempts;
+
+        if (isLimitError) {
+          const resumeAt = await this.handleDailyLimitReached(context, failure);
+
+          await this.recordSendEvent({
+            context,
+            eventType: EmailSendEventType.SEND_FAILED_TEMPORARY,
+            failureCategory: EmailFailureCategory.TEMPORARY,
+            failureCode: failure.code,
+            failureMessage: failure.message,
+            smtpResponseCode: failure.smtpResponseCode,
+            attempt: ctx.attempt,
+            maxAttempts: ctx.maxAttempts,
+            hardBounceCandidate: false,
+          });
+
+          this.logger.warn(
+            `Daily limit reached campaign=${context.campaign._id.toString()} recipient=${context.recipient._id.toString()} resumeAt=${resumeAt.toISOString()}`,
+          );
+
+          return {
+            type: 'rate_limited',
+            message: `${failure.code}: ${failure.message}`,
+            campaignId: context.campaign._id.toString(),
+            workspaceId: context.workspaceId.toString(),
+            resumeAt: resumeAt.toISOString(),
+          };
+        }
+
+        // Circuit Breaker System
+        const campaignIdStr = context.campaign._id.toString();
+        const currentFailures = (this.consecutiveFailures.get(campaignIdStr) ?? 0) + 1;
+        this.consecutiveFailures.set(campaignIdStr, currentFailures);
+
+        if (currentFailures >= 3) {
+          const cooldownMinutes = 10 + Math.random() * 20; // 10-30 minutes
+          const resumeAt = new Date(Date.now() + cooldownMinutes * 60 * 1000);
+          await this.triggerCircuitBreaker(context, resumeAt, failure.message);
+
+          this.logger.warn(
+            `Circuit breaker triggered: pausing campaign=${campaignIdStr} due to 3 consecutive failures. Last error: ${failure.message}`,
+          );
+
+          return {
+            type: 'rate_limited',
+            message: `Circuit breaker triggered: ${failure.message}`,
+            campaignId: context.campaign._id.toString(),
+            workspaceId: context.workspaceId.toString(),
+            resumeAt: resumeAt.toISOString(),
+          };
+        }
+
+        if (failure.category === EmailFailureCategory.TEMPORARY && retriesRemaining) {
+          await this.campaignRecipientModel
+            .updateOne(
+              { _id: context.recipient._id },
+              {
+                $set: {
+                  status: CampaignRecipientStatus.QUEUED,
+                  providerMessageId: null,
+                  failureReason: `${failure.code}: ${failure.message}`,
+                  failedAt: null,
+                },
+              },
+            )
+            .exec();
+
+          await this.recordSendEvent({
+            context,
+            eventType: EmailSendEventType.SEND_RETRY_SCHEDULED,
+            failureCategory: failure.category,
+            failureCode: failure.code,
+            failureMessage: failure.message,
+            smtpResponseCode: failure.smtpResponseCode,
+            attempt: ctx.attempt,
+            maxAttempts: ctx.maxAttempts,
+            retryScheduled: true,
+          });
+
+          return {
+            type: 'retryable_failure',
+            message: `${failure.code}: ${failure.message}`,
+          };
+        }
+
+        const eventType =
+          failure.category === EmailFailureCategory.TEMPORARY
+            ? EmailSendEventType.SEND_FAILED_TEMPORARY
+            : EmailSendEventType.SEND_FAILED_PERMANENT;
+
+        await this.campaignRecipientModel
+          .updateOne(
+            { _id: context.recipient._id },
+            {
+              $set: {
+                status: CampaignRecipientStatus.FAILED,
+                providerMessageId: null,
+                failureReason: `${failure.code}: ${failure.message}`,
+                failedAt: new Date(),
+              },
+            },
+          )
+          .exec();
+
+        const incFields: Record<string, number> = {
+          'stats.failedRecipients': 1,
+          'stats.queuedRecipients': -1,
+        };
+
+        await this.campaignModel
+          .updateOne(
+            { _id: context.campaign._id },
+            { $inc: incFields },
+          )
+          .exec();
+
+        await this.tryMarkCampaignCompleted(context.campaign._id);
+
+        await this.recordSendEvent({
+          context,
+          eventType,
           failureCategory: failure.category,
           failureCode: failure.code,
           failureMessage: failure.message,
           smtpResponseCode: failure.smtpResponseCode,
           attempt: ctx.attempt,
           maxAttempts: ctx.maxAttempts,
-          retryScheduled: true,
+          hardBounceCandidate: failure.hardBounceCandidate,
         });
 
+        this.logger.warn(
+          `Email send failed campaignRecipient=${context.recipient._id.toString()} category=${failure.category} code=${failure.code} hardBounceCandidate=${failure.hardBounceCandidate}`,
+        );
+
         return {
-          type: 'retryable_failure',
+          type: 'permanent_failure',
           message: `${failure.code}: ${failure.message}`,
         };
       }
-
-      const eventType =
-        failure.category === EmailFailureCategory.TEMPORARY
-          ? EmailSendEventType.SEND_FAILED_TEMPORARY
-          : EmailSendEventType.SEND_FAILED_PERMANENT;
-
-      await this.campaignRecipientModel
-        .updateOne(
-          { _id: context.recipient._id },
-          {
-            $set: {
-              status: CampaignRecipientStatus.FAILED,
-              providerMessageId: null,
-              failureReason: `${failure.code}: ${failure.message}`,
-              failedAt: new Date(),
-            },
-          },
-        )
-        .exec();
-
-      const incFields: Record<string, number> = {
-        'stats.failedRecipients': 1,
-        'stats.queuedRecipients': -1,
-      };
-
-      await this.campaignModel
-        .updateOne(
-          { _id: context.campaign._id },
-          { $inc: incFields },
-        )
-        .exec();
-
-      await this.tryMarkCampaignCompleted(context.campaign._id);
-
-      await this.recordSendEvent({
-        context,
-        eventType,
-        failureCategory: failure.category,
-        failureCode: failure.code,
-        failureMessage: failure.message,
-        smtpResponseCode: failure.smtpResponseCode,
-        attempt: ctx.attempt,
-        maxAttempts: ctx.maxAttempts,
-        hardBounceCandidate: failure.hardBounceCandidate,
-      });
-
-      this.logger.warn(
-        `Email send failed campaignRecipient=${context.recipient._id.toString()} category=${failure.category} code=${failure.code} hardBounceCandidate=${failure.hardBounceCandidate}`,
-      );
-
-      return {
-        type: 'permanent_failure',
-        message: `${failure.code}: ${failure.message}`,
-      };
+    } finally {
+      this.activeSenderLocks.delete(senderIdStr);
     }
   }
 
@@ -611,6 +690,11 @@ export class EmailService {
   }
 
   private createTransporter(senderAccount: SenderAccountDocument): Transporter {
+    const cacheKey = senderAccount._id.toString();
+    if (this.transporters.has(cacheKey)) {
+      return this.transporters.get(cacheKey)!;
+    }
+
     const emailConfig = senderAccount.email;
     const encryptedSmtpPass = senderAccount.secrets.smtpPassEncrypted;
 
@@ -623,7 +707,7 @@ export class EmailService {
     }
 
     const smtpPass = this.senderAccountSecretsService.decrypt(encryptedSmtpPass);
-    const transportOptions: SMTPTransport.Options = {
+    const transportOptions: any = {
       host: emailConfig.smtpHost,
       port: emailConfig.smtpPort,
       secure: emailConfig.smtpPort === 465,
@@ -634,9 +718,15 @@ export class EmailService {
       connectionTimeout: 15000,
       greetingTimeout: 15000,
       socketTimeout: 20000,
+      pool: true,
+      maxConnections: 1,
+      idleTimeout: 300000,
+      maxMessages: 100,
     };
 
-    return createTransport(transportOptions);
+    const transporter = createTransport(transportOptions);
+    this.transporters.set(cacheKey, transporter);
+    return transporter;
   }
 
   private renderTemplate(context: {
@@ -751,13 +841,25 @@ export class EmailService {
     return DAILY_LIMIT_FAILURE_PATTERN.test(`${failure.code} ${failure.message}`);
   }
 
-  private async resolveDailyLimitResumeAt(campaign: CampaignDocument, now: Date): Promise<Date> {
-    const latest = await this.campaignModel.findById(campaign._id).select('limitResumeAt').exec();
+  private async resolveDailyLimitResumeAt(context: EmailSendContext, now: Date): Promise<Date> {
+    const latest = await this.campaignModel.findById(context.campaign._id).select('limitResumeAt').exec();
     if (latest && latest.limitResumeAt) {
       return new Date(latest.limitResumeAt);
     }
 
-    return new Date(now.getTime() + this.limitResetDelayMs);
+    // Try to find the oldest successful send event in the last 24 hours
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const oldestEvent = await this.sendEventModel
+      .findOne({
+        senderAccountId: context.senderAccount._id,
+        eventType: EmailSendEventType.SEND_SUCCESS,
+        createdAt: { $gte: twentyFourHoursAgo },
+      })
+      .sort({ createdAt: 1 })
+      .exec();
+
+    const oldestTime = oldestEvent?.createdAt ? new Date(oldestEvent.createdAt) : twentyFourHoursAgo;
+    return new Date(oldestTime.getTime() + 24 * 60 * 60 * 1000);
   }
 
   private async handleDailyLimitReached(
@@ -765,7 +867,7 @@ export class EmailService {
     failure: EmailFailureClassification,
   ): Promise<Date> {
     const now = new Date();
-    const resumeAt = await this.resolveDailyLimitResumeAt(context.campaign, now);
+    const resumeAt = await this.resolveDailyLimitResumeAt(context, now);
     const failureReason = `${failure.code}: ${failure.message}`;
 
     await this.campaignRecipientModel
@@ -837,6 +939,186 @@ export class EmailService {
       .exec();
 
     return resumeAt;
+  }
+
+  private async checkLimitsAndPauseIfNeeded(context: EmailSendContext): Promise<{ message: string; resumeAt: Date } | null> {
+    const settings = await this.workspaceSettingsModel
+      .findOne({ workspaceId: context.workspaceId })
+      .lean()
+      .exec();
+
+    const channel = context.campaign.channel;
+    const channelLimits = settings?.sendingLimits?.[channel as 'email' | 'whatsapp' | 'sms'];
+
+    const defaultDailyLimit = channelLimits?.dailyLimit ?? settings?.sendingLimits?.dailyLimit ?? 275;
+    const defaultHourlyLimit = channelLimits?.hourlyLimit ?? settings?.sendingLimits?.hourlyLimit ?? 50;
+    const respectSenderLimits = settings?.sendingLimits?.respectSenderLimits ?? true;
+
+    const senderDaily = respectSenderLimits ? context.senderAccount.email?.dailyLimit : undefined;
+    const senderHourly = respectSenderLimits ? context.senderAccount.email?.hourlyLimit : undefined;
+
+    const dailyLimit = senderDaily ?? context.campaign.dailyCap ?? defaultDailyLimit;
+    const hourlyLimit = senderHourly ?? context.campaign.dailyCap ?? defaultHourlyLimit;
+
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    const [hourlySendCount, dailySendCount] = await Promise.all([
+      this.sendEventModel.countDocuments({
+        senderAccountId: context.senderAccount._id,
+        eventType: EmailSendEventType.SEND_SUCCESS,
+        createdAt: { $gte: oneHourAgo },
+      }).exec(),
+      this.sendEventModel.countDocuments({
+        senderAccountId: context.senderAccount._id,
+        eventType: EmailSendEventType.SEND_SUCCESS,
+        createdAt: { $gte: twentyFourHoursAgo },
+      }).exec(),
+    ]);
+
+    if (hourlySendCount >= hourlyLimit) {
+      const oldestEvent = await this.sendEventModel
+        .findOne({
+          senderAccountId: context.senderAccount._id,
+          eventType: EmailSendEventType.SEND_SUCCESS,
+          createdAt: { $gte: oneHourAgo },
+        })
+        .sort({ createdAt: 1 })
+        .exec();
+
+      const oldestTime = oldestEvent?.createdAt ? new Date(oldestEvent.createdAt) : oneHourAgo;
+      const resumeAt = new Date(oldestTime.getTime() + 60 * 60 * 1000);
+
+      await this.pauseCampaignOnLimit(
+        context,
+        `Hourly sending limit of ${hourlyLimit} reached for sender ${context.senderAccount.email?.email}`,
+        'hourly sending limit reached',
+        resumeAt,
+      );
+
+      return {
+        message: `Hourly sending limit reached: ${hourlyLimit}`,
+        resumeAt,
+      };
+    }
+
+    if (dailySendCount >= dailyLimit) {
+      const oldestEvent = await this.sendEventModel
+        .findOne({
+          senderAccountId: context.senderAccount._id,
+          eventType: EmailSendEventType.SEND_SUCCESS,
+          createdAt: { $gte: twentyFourHoursAgo },
+        })
+        .sort({ createdAt: 1 })
+        .exec();
+
+      const oldestTime = oldestEvent?.createdAt ? new Date(oldestEvent.createdAt) : twentyFourHoursAgo;
+      const resumeAt = new Date(oldestTime.getTime() + 24 * 60 * 60 * 1000);
+
+      await this.pauseCampaignOnLimit(
+        context,
+        `Daily sending limit of ${dailyLimit} reached for sender ${context.senderAccount.email?.email}`,
+        CAMPAIGN_STOP_REASON_DAILY_LIMIT,
+        resumeAt,
+      );
+
+      return {
+        message: `Daily sending limit reached: ${dailyLimit}`,
+        resumeAt,
+      };
+    }
+
+    return null;
+  }
+
+  private async pauseCampaignOnLimit(
+    context: EmailSendContext,
+    failureReason: string,
+    stopReason: string,
+    resumeAt: Date,
+  ): Promise<void> {
+    const now = new Date();
+
+    await this.campaignRecipientModel
+      .updateOne(
+        {
+          _id: context.recipient._id,
+          status: { $in: [CampaignRecipientStatus.QUEUED, CampaignRecipientStatus.SENDING] },
+        },
+        {
+          $set: {
+            status: CampaignRecipientStatus.PENDING,
+            providerMessageId: null,
+            failureReason,
+            failedAt: null,
+          },
+        },
+      )
+      .exec();
+
+    await this.campaignRecipientModel
+      .updateMany(
+        {
+          campaignId: context.campaign._id,
+          status: CampaignRecipientStatus.QUEUED,
+        },
+        {
+          $set: {
+            status: CampaignRecipientStatus.PENDING,
+            failedAt: null,
+          },
+        },
+      )
+      .exec();
+
+    const remainingCount = await this.campaignRecipientModel
+      .countDocuments({
+        campaignId: context.campaign._id,
+        status: {
+          $in: [
+            CampaignRecipientStatus.PENDING,
+            CampaignRecipientStatus.QUEUED,
+            CampaignRecipientStatus.SENDING,
+          ],
+        },
+      })
+      .exec();
+
+    const setFields: Record<string, unknown> = {
+      status: CampaignStatus.PAUSED,
+      stoppedAt: now,
+      stopReason,
+      limitResumeAt: resumeAt,
+      'stats.limitFailedRecipients': remainingCount,
+      'stats.queuedRecipients': remainingCount,
+    };
+
+    if (!context.campaign.limitFailedAt) {
+      setFields.limitFailedAt = now;
+    }
+
+    await this.campaignModel
+      .updateOne(
+        {
+          _id: context.campaign._id,
+          status: { $in: [CampaignStatus.RUNNING, CampaignStatus.PAUSED] },
+        },
+        { $set: setFields },
+      )
+      .exec();
+  }
+
+  private async triggerCircuitBreaker(context: EmailSendContext, resumeAt: Date, errorMsg: string): Promise<void> {
+    const campaignIdStr = context.campaign._id.toString();
+    this.consecutiveFailures.set(campaignIdStr, 0);
+
+    await this.pauseCampaignOnLimit(
+      context,
+      `Circuit breaker triggered: 3 consecutive SMTP failures. Last error: ${errorMsg}`,
+      'circuit breaker triggered',
+      resumeAt,
+    );
   }
 
   /**
