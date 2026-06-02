@@ -67,76 +67,128 @@ export function SendingLimitInfoDialog({ open, onOpenChange }: SendingLimitInfoD
         </div>
 
         {/* 2. Dynamic Reputation Warning Box (Second) */}
-        <div className="rounded-xl border border-zinc-200 bg-[#f3f4f6] p-5 space-y-3 text-black mb-6">
-          <h4 className="text-sm font-semibold text-black flex items-center gap-2">
-            <ShieldAlert className="h-4.5 w-4.5 text-rose-500 shrink-0" />
-            Why Your Actual Sending Limit Might Be Lower (Not Fixed)
+        <div className="rounded-xl border border-zinc-200 bg-red-50/50 p-5 space-y-3 text-black mb-6">
+          <h4 className="text-sm font-bold text-red-800 flex items-center gap-2">
+            <ShieldAlert className="h-5 w-5 text-red-600 shrink-0" />
+            Why Your Sending Limit Might Drop (Google's Rules)
           </h4>
-          <p className="text-xs text-zinc-800 leading-relaxed">
-            The standard limits of <strong>500 (standard Gmail)</strong> and <strong>2,000 (Google Workspace)</strong> are <strong>not fixed or guaranteed</strong>. Google's SMTP servers dynamically analyze your sending history and reputation, and will decrease your daily sending capacity if they detect any of the following:
+          <p className="text-xs text-zinc-700 leading-relaxed">
+            Google's maximum limits of <strong>500 (free Gmail)</strong> and <strong>2,000 (Google Workspace)</strong> are not guaranteed. Google looks at how you send emails and will lower your daily limit if you do any of these things:
           </p>
-          <ul className="list-disc pl-5 text-xs text-zinc-800 space-y-1.5 leading-relaxed">
-            <li>
-              <strong>Lack of Sender History:</strong> New or warmed-down accounts do not have an established reputation. Google restricts these accounts to much lower initial limits, scaling them up gradually as clean emails are regularly sent over time.
-            </li>
-            <li>
-              <strong>High Bounce Rates:</strong> Sending messages to invalid, inactive, or non-existent email addresses indicates poor list hygiene, causing Google's anti-spam algorithms to lower your limit immediately.
-            </li>
-            <li>
-              <strong>Spam Complaints:</strong> If recipients mark your messages as spam or if Google's filters flag suspicious link patterns and wording, Google will dynamically drop your daily limit (sometimes to under 100/day).
-            </li>
-            <li>
-              <strong>Authentication Status:</strong> Senders without verified domain records (SPF, DKIM, DMARC) are treated with high suspicion, leading to heavily restricted SMTP acceptance rates.
-            </li>
-          </ul>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs mt-2">
+            <div className="p-3 bg-white rounded-lg border border-red-100 space-y-1">
+              <span className="font-bold text-zinc-900 block">1. Sending too fast on a new account</span>
+              <p className="text-zinc-600 leading-relaxed text-[11px]">
+                If your account is brand new or hasn't sent emails in a long time, Google blocks sudden large bursts of emails.
+              </p>
+              <span className="text-[11px] font-semibold text-emerald-700 block bg-emerald-50 px-1.5 py-0.5 rounded w-max mt-1">
+                Solution: Start slow and warm up.
+              </span>
+            </div>
+            
+            <div className="p-3 bg-white rounded-lg border border-red-100 space-y-1">
+              <span className="font-bold text-zinc-900 block">2. Sending to fake or dead emails</span>
+              <p className="text-zinc-600 leading-relaxed text-[11px]">
+                Sending emails that bounce back because the address doesn't exist makes you look like a spammer.
+              </p>
+              <span className="text-[11px] font-semibold text-emerald-700 block bg-emerald-50 px-1.5 py-0.5 rounded w-max mt-1">
+                Solution: Verify and clean your list.
+              </span>
+            </div>
+
+            <div className="p-3 bg-white rounded-lg border border-red-100 space-y-1">
+              <span className="font-bold text-zinc-900 block">3. People marking you as spam</span>
+              <p className="text-zinc-600 leading-relaxed text-[11px]">
+                If recipients manually click "Report Spam", Google immediately drops your sending limit.
+              </p>
+              <span className="text-[11px] font-semibold text-emerald-700 block bg-emerald-50 px-1.5 py-0.5 rounded w-max mt-1">
+                Solution: Only email people who agreed to join.
+              </span>
+            </div>
+
+            <div className="p-3 bg-white rounded-lg border border-red-100 space-y-1">
+              <span className="font-bold text-zinc-900 block">4. Missing domain setup (SPF/DKIM)</span>
+              <p className="text-zinc-600 leading-relaxed text-[11px]">
+                If you haven't verified that you own your domain, Google treats your emails as suspicious.
+              </p>
+              <span className="text-[11px] font-semibold text-emerald-700 block bg-emerald-50 px-1.5 py-0.5 rounded w-max mt-1">
+                Solution: Add SPF & DKIM records.
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* 3. How to Increase & Restore Your Sending Limits */}
-        <div className="rounded-xl border border-zinc-200 bg-[#f3f4f6] p-5 space-y-3 text-black mb-6">
-          <h4 className="text-sm font-semibold text-black flex items-center gap-2">
-            <Sparkles className="h-4.5 w-4.5 text-emerald-600 shrink-0" />
-            How to Increase & Restore Your Sending Limits (Beginner Guide)
+        <div className="rounded-xl border border-zinc-200 bg-emerald-50/30 p-5 space-y-3 text-black mb-6">
+          <h4 className="text-sm font-bold text-emerald-800 flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-emerald-600 shrink-0" />
+            How to Increase Your Limits & Build Trust (Step-by-Step Guide)
           </h4>
-          <p className="text-xs text-zinc-800 leading-relaxed">
-            If Google has lowered your limits or you want to safely scale up to reach the maximum 2,000/day limit, follow these simple and essential steps:
+          <p className="text-xs text-zinc-700 leading-relaxed">
+            Follow these easy steps to get Google to trust your email account and safely increase your daily sending capacity:
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 text-xs">
-            <div className="space-y-1">
-              <strong className="text-zinc-900 block font-semibold">1. Authenticate Your Domain (SPF, DKIM, DMARC)</strong>
-              <span className="text-zinc-700 leading-relaxed block">
-                Go to your domain registrar (like GoDaddy or Namecheap) and add SPF, DKIM, and DMARC records. This tells Google that you are a verified owner and not a spammer.
-              </span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+            
+            <div className="p-4 bg-white rounded-lg border border-emerald-100 space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">1</span>
+                <span className="font-bold text-zinc-900">Setup Domain Verification</span>
+              </div>
+              <p className="text-zinc-600 leading-relaxed">
+                Log into your domain provider (like GoDaddy, Namecheap) and add <strong>SPF, DKIM, and DMARC</strong> records. This proves you are the real owner.
+              </p>
             </div>
-            <div className="space-y-1">
-              <strong className="text-zinc-900 block font-semibold">2. Warm Up Your Email Account Slowly</strong>
-              <span className="text-zinc-700 leading-relaxed block">
-                Do not send hundreds of emails on day one. Start by sending 10-20 emails per day and gradually increase by 10-15% each day. This slowly builds a trust score with Google.
-              </span>
+
+            <div className="p-4 bg-white rounded-lg border border-emerald-100 space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">2</span>
+                <span className="font-bold text-zinc-900">Warm Up Slowly</span>
+              </div>
+              <p className="text-zinc-600 leading-relaxed">
+                Don't send hundreds of emails on your first day. Start with 10–20 per day, then increase by 10% daily. This builds a good sender score.
+              </p>
             </div>
-            <div className="space-y-1">
-              <strong className="text-zinc-900 block font-semibold">3. Upgrade to Paid Google Workspace</strong>
-              <span className="text-zinc-700 leading-relaxed block">
-                Free <code>@gmail.com</code> accounts are strictly capped at 500/day. Upgrading to a paid Google Workspace account (e.g. <code>name@yourcompany.com</code>) increases your max potential limit to 2,000/day.
-              </span>
+
+            <div className="p-4 bg-white rounded-lg border border-emerald-100 space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">3</span>
+                <span className="font-bold text-zinc-900">Use Paid Google Workspace</span>
+              </div>
+              <p className="text-zinc-600 leading-relaxed">
+                Free accounts (ending in <code>@gmail.com</code>) are limited to 500/day. Paid accounts (like <code>you@yourcompany.com</code>) can send up to 2,000/day.
+              </p>
             </div>
-            <div className="space-y-1">
-              <strong className="text-zinc-900 block font-semibold">4. How to Restore Restrictive Limits</strong>
-              <span className="text-zinc-700 leading-relaxed block">
-                If Google restricted your capacity, stop sending campaigns for 24-48 hours. Send 5-10 manual emails to friends or colleagues and ask them to reply. Genuine replies tell Google your account is authentic.
-              </span>
+
+            <div className="p-4 bg-white rounded-lg border border-emerald-100 space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">4</span>
+                <span className="font-bold text-zinc-900">Fixing a Blocked Account</span>
+              </div>
+              <p className="text-zinc-600 leading-relaxed">
+                If Google blocks your limits, stop sending campaigns for 48 hours. Send 5-10 manual emails to friends and ask them to reply to restore trust.
+              </p>
             </div>
-            <div className="space-y-1">
-              <strong className="text-zinc-900 block font-semibold">5. Keep Bounces & Complaints Very Low</strong>
-              <span className="text-zinc-700 leading-relaxed block">
-                Always verify and clean your contact list to keep bounce rates below 2%. Include a clear unsubscribe link so recipients can opt out without marking your emails as spam.
-              </span>
+
+            <div className="p-4 bg-white rounded-lg border border-emerald-100 space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">5</span>
+                <span className="font-bold text-zinc-900">Add an Unsubscribe Link</span>
+              </div>
+              <p className="text-zinc-600 leading-relaxed">
+                Always include a clear "Unsubscribe" button in every email. If people can easily leave, they won't report your emails as spam.
+              </p>
             </div>
-            <div className="space-y-1">
-              <strong className="text-zinc-900 block font-semibold">6. Personalize Every Message</strong>
-              <span className="text-zinc-700 leading-relaxed block">
-                {"Use variables like "}<code>{"{{firstName}}"}</code>{" or company name. Sending identical copy-paste templates to thousands of users triggers Google's automatic spam filters."}
-              </span>
+
+            <div className="p-4 bg-white rounded-lg border border-emerald-100 space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">6</span>
+                <span className="font-bold text-zinc-900">Personalize Your Emails</span>
+              </div>
+              <p className="text-zinc-600 leading-relaxed">
+                Use tags like <code>{"{{firstName}}"}</code>. Sending the exact same message to thousands of people makes Google flag you as a robot.
+              </p>
             </div>
+
           </div>
         </div>
 
@@ -150,9 +202,7 @@ export function SendingLimitInfoDialog({ open, onOpenChange }: SendingLimitInfoD
               Rolling 24-Hour Windows
             </h4>
             <p className="text-xs text-zinc-800 leading-relaxed">
-              Google does not reset daily sending limits at midnight. Limits are calculated dynamically on a continuous, 
-              <strong> rolling 24-hour window</strong>. If you reach your limit, your sender account is restricted 
-              until enough time passes for the oldest emails to drop out of the 24-hour window.
+              Google doesn't reset limits at midnight. It looks at the last 24 hours. If you reach your limit, you must wait for older emails to expire before you can send more.
             </p>
           </div>
 
@@ -160,12 +210,10 @@ export function SendingLimitInfoDialog({ open, onOpenChange }: SendingLimitInfoD
           <div className="rounded-xl border border-zinc-200 bg-[#f3f4f6] p-5 space-y-2 text-black">
             <h4 className="text-sm font-semibold text-black flex items-center gap-2">
               <Gauge className="h-4.5 w-4.5 text-amber-500 shrink-0" />
-              Connection & Velocity Throttling
+              Burst Limits & Safe Pacing
             </h4>
             <p className="text-xs text-zinc-800 leading-relaxed">
-              Sending a burst of emails too quickly triggers automated safety locks. Google's SMTP servers look for 
-              rapid login/send/logout activity and may temporarily block connections. To safeguard your domain, 
-              our platform enforces default pacing delays (<strong>50s–80s</strong> per email) and limits.
+              Sending too many emails at once triggers safety locks. To protect you, we add a short pause (<strong>50s–80s</strong> per email) so Google doesn't block your connection.
             </p>
           </div>
 
@@ -176,9 +224,7 @@ export function SendingLimitInfoDialog({ open, onOpenChange }: SendingLimitInfoD
               Reputation & Content Limits
             </h4>
             <p className="text-xs text-zinc-800 leading-relaxed">
-              The daily limit (up to 2,000 for Google Workspace or 500 for standard Gmail) is a theoretical maximum. 
-              If Google's algorithms detect high bounce rates, spam flags, or identical repetitive messages, they will 
-              <strong> dynamically lower your account threshold</strong>, sometimes restricting sending to under 100/day.
+              The 500 or 2,000 limits are the maximum possible. If Google notices bad behavior, it will dynamically drop your limit, sometimes restricting you to less than 100 emails a day.
             </p>
           </div>
 
@@ -186,30 +232,22 @@ export function SendingLimitInfoDialog({ open, onOpenChange }: SendingLimitInfoD
           <div className="rounded-xl border border-zinc-200 bg-[#f3f4f6] p-5 space-y-2 text-black">
             <h4 className="text-sm font-semibold text-black flex items-center gap-2">
               <UserCheck className="h-4.5 w-4.5 text-amber-500 shrink-0" />
-              Shared Inbox Capacity
+              Shared Inbox Space
             </h4>
             <p className="text-xs text-zinc-800 leading-relaxed">
-              All sending capacity is shared globally across the target inbox. If you or your team send regular manual emails, 
-              or if other third-party tools are connected to the same Google account, those messages count toward the same 
-              rolling limit, reducing the total available capacity for marketing campaigns.
+              Your sending limit is shared. If you send normal emails from your Gmail inbox, or use other apps with the same account, those count towards the same daily limit.
             </p>
           </div>
 
         </div>
 
         {/* 4. Warning / Acceptance Clause */}
-        <div className="rounded-xl border border-zinc-200 bg-[#f3f4f6] p-5 flex gap-3.5 text-sm text-black">
+        <div className="rounded-xl border border-zinc-200 bg-amber-50/50 p-5 flex gap-3.5 text-sm text-black">
           <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <h4 className="font-bold text-black flex items-center gap-1">Final Delivery & Acceptance Control</h4>
+            <h4 className="font-bold text-black flex items-center gap-1">Please Note</h4>
             <p className="leading-relaxed text-zinc-800 text-xs">
-              <strong>Please Note:</strong> While our platform manages sending schedules, pacing delays, and daily limits to align 
-              with best practices, the final acceptance and delivery of emails are ultimately controlled by Google's SMTP policies 
-              and reputation systems. 
-            </p>
-            <p className="leading-relaxed text-zinc-500 text-[11px] pt-1">
-              If Google restricts your account or rejects a message, our platform dynamically pauses the campaign to protect 
-              your domain reputation, permitting resumption once the rolling window resets.
+              While our system spaces out your emails and limits daily sends to keep your account safe, <strong>Google has the final say</strong>. If Google decides to block or pause your email, our system will automatically pause your campaigns to protect your email account from getting banned.
             </p>
           </div>
         </div>
